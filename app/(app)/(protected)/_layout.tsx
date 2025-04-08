@@ -54,11 +54,11 @@ export default function ProtectedLayout() {
 			<Tabs.Screen
 				name="settings"
 				options={{
-					title: "Settings",
+					title: "Account",
 					tabBarIcon: ({ color, size }) => (
-						<Ionicons name="settings-outline" size={size} color={color} />
+						<Ionicons name="person-outline" size={size} color={color} />
 					),
-					tabBarLabel: "Settings",
+					tabBarLabel: "Account",
 				}}
 			/>
 		</Tabs>

@@ -244,7 +244,7 @@ export default function Settings() {
 		<SafeAreaView className="flex-1 bg-background">
 			<View className="flex-1 flex-col justify-between">
 				<ScrollView className="p-4">
-					<H1 className="text-center mb-6">Profile Settings</H1>
+					<H1 className="text-center mb-6">My Account</H1>
 
 					{/* Profile Photo Section */}
 					<View className="items-center mb-8">
