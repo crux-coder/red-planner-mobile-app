@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "@/components/safe-area-view";
 import { useRouter } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { Text } from "@/components/ui/text";
 import { H1, Muted } from "@/components/ui/typography";
@@ -22,6 +23,7 @@ import JobCard from "@/app/components/home/JobCard";
 import HourMarkers from "@/app/components/home/HourMarkers";
 import CurrentTimeIndicator from "@/app/components/home/CurrentTimeIndicator";
 import DateNavigator from "@/app/components/home/DateNavigator";
+import SwipeableDateView from "@/app/components/home/SwipeableDateView";
 
 // Define job related types
 export type JobType = "survey" | "data" | "cad" | "qa";
@@ -103,7 +105,7 @@ export interface Job {
 }
 
 export default function Home() {
-	const [jobs, setJobs] = useState<Job[]>([]);
+	const [jobsCache, setJobsCache] = useState<Record<string, Job[]>>({});
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
 	const [currentDate, setCurrentDate] = useState(new Date());
@@ -115,18 +117,123 @@ export default function Home() {
 	const HOUR_HEIGHT = 60;
 	const TOTAL_HEIGHT = HOUR_HEIGHT * 24;
 
+	// Helper function to format date as YYYY-MM-DD for cache keys
+	const formatDateKey = useCallback((date: Date) => {
+		return date.toISOString().split("T")[0];
+	}, []);
+
+	// Get adjacent dates for prefetching
+	const getPrevDate = useCallback((date: Date) => {
+		const prevDate = new Date(date);
+		prevDate.setDate(prevDate.getDate() - 1);
+		return prevDate;
+	}, []);
+
+	const getNextDate = useCallback((date: Date) => {
+		const nextDate = new Date(date);
+		nextDate.setDate(nextDate.getDate() + 1);
+		return nextDate;
+	}, []);
+
+	// Initial data loading
 	useEffect(() => {
-		fetchJobs();
+		const loadInitialData = async () => {
+			setLoading(true);
+			
+			// Fetch data for yesterday, today, and tomorrow on initial load
+			const today = new Date();
+			const yesterday = getPrevDate(today);
+			const tomorrow = getNextDate(today);
+			
+			try {
+				await Promise.all([
+					fetchJobsForDate(yesterday),
+					fetchJobsForDate(today),
+					fetchJobsForDate(tomorrow)
+				]);
+			} catch (error) {
+				console.error("Error loading initial data:", error);
+			} finally {
+				setLoading(false);
+			}
+		};
+		
+		loadInitialData();
+	}, []);
+
+	// Effect to fetch data when current date changes
+	useEffect(() => {
+		// Fetch jobs for current date and adjacent dates
+		const fetchAllNeededDates = async () => {
+			const prevDate = getPrevDate(currentDate);
+			const nextDate = getNextDate(currentDate);
+			
+			const currentDateKey = formatDateKey(currentDate);
+			const prevDateKey = formatDateKey(prevDate);
+			const nextDateKey = formatDateKey(nextDate);
+			
+			// Check which dates we need to fetch
+			const datesToFetch = [
+				{ date: currentDate, key: currentDateKey },
+				{ date: prevDate, key: prevDateKey },
+				{ date: nextDate, key: nextDateKey },
+			].filter(({ key }) => !jobsCache[key]);
+			
+			if (datesToFetch.length > 0) {
+				setLoading(true);
+				await Promise.all(datesToFetch.map(({ date }) => fetchJobsForDate(date)));
+				setLoading(false);
+			}
+		};
+		
+		fetchAllNeededDates();
 	}, [currentDate]);
 
-	const fetchJobs = useCallback(async () => {
+	// Prefetch additional days when we navigate to ensure smooth experience
+	useEffect(() => {
+		// Prefetch two days ahead and two days behind for smoother navigation
+		const prefetchAdditionalDays = async () => {
+			const twoDaysBefore = new Date(currentDate);
+			twoDaysBefore.setDate(currentDate.getDate() - 2);
+			
+			const twoDaysAfter = new Date(currentDate);
+			twoDaysAfter.setDate(currentDate.getDate() + 2);
+			
+			const twoDaysBeforeKey = formatDateKey(twoDaysBefore);
+			const twoDaysAfterKey = formatDateKey(twoDaysAfter);
+			
+			// Only fetch if not already in cache
+			const additionalFetches = [];
+			
+			if (!jobsCache[twoDaysBeforeKey]) {
+				additionalFetches.push(fetchJobsForDate(twoDaysBefore));
+			}
+			
+			if (!jobsCache[twoDaysAfterKey]) {
+				additionalFetches.push(fetchJobsForDate(twoDaysAfter));
+			}
+			
+			if (additionalFetches.length > 0) {
+				// No need to set loading state for these additional prefetches
+				await Promise.all(additionalFetches);
+			}
+		};
+		
+		// Run the prefetch after a short delay to prioritize the main view
+		const timeoutId = setTimeout(() => {
+			prefetchAdditionalDays();
+		}, 1000);
+		
+		return () => clearTimeout(timeoutId);
+	}, [currentDate, jobsCache]);
+
+	const fetchJobsForDate = useCallback(async (date: Date) => {
 		try {
-			setLoading(true);
-
 			// Format the date for query (YYYY-MM-DD)
-			const dateStr = currentDate.toISOString().split("T")[0];
+			const dateStr = date.toISOString().split("T")[0];
+			const dateKey = formatDateKey(date);
 
-			// Fetch jobs for the current date with all related data
+			// Fetch jobs for the specified date with all related data
 			const { data, error } = await supabase
 				.from("jobs")
 				.select(
@@ -156,61 +263,28 @@ export default function Home() {
 				return;
 			}
 
-			setJobs(data || []);
+			// Update the jobs cache with the fetched data
+			setJobsCache(prevCache => ({
+				...prevCache,
+				[dateKey]: data || []
+			}));
+			
 		} catch (error) {
 			console.error("Error:", error);
-		} finally {
-			setLoading(false);
-			setRefreshing(false);
 		}
-	}, [currentDate]);
-
-	// Calculate position and height for a job based on its start and end times
-	const getJobPosition = useCallback(
-		(job: Job) => {
-			if (!job.start_date || !job.end_date) return { top: 0, height: 0 };
-
-			const startDate = new Date(job.start_date);
-			const endDate = new Date(job.end_date);
-
-			// Calculate hours since midnight
-			const startHours = startDate.getHours() + startDate.getMinutes() / 60;
-			const endHours = endDate.getHours() + endDate.getMinutes() / 60;
-
-			// Calculate position and height
-			const top = startHours * HOUR_HEIGHT;
-			const height = (endHours - startHours) * HOUR_HEIGHT;
-
-			return { top, height };
-		},
-		[HOUR_HEIGHT],
-	);
-
-	// Render jobs as positioned elements on the timeline
-	const renderJobs = useCallback(() => {
-		return jobs.map((job) => {
-			if (!job.start_date || !job.end_date) return null;
-
-			const { top, height } = getJobPosition(job);
-			if (height <= 0) return null;
-
-			return <JobCard key={job.id} job={job} top={top} height={height} />;
-		});
-	}, [jobs, getJobPosition]);
+	}, [formatDateKey]);
 
 	// Function to navigate to previous day
 	const goToPreviousDay = useCallback(() => {
-		const prevDay = new Date(currentDate);
-		prevDay.setDate(prevDay.getDate() - 1);
+		const prevDay = getPrevDate(currentDate);
 		setCurrentDate(prevDay);
-	}, [currentDate]);
+	}, [currentDate, getPrevDate]);
 
 	// Function to navigate to next day
 	const goToNextDay = useCallback(() => {
-		const nextDay = new Date(currentDate);
-		nextDay.setDate(nextDay.getDate() + 1);
+		const nextDay = getNextDate(currentDate);
 		setCurrentDate(nextDay);
-	}, [currentDate]);
+	}, [currentDate, getNextDate]);
 
 	// Function to go to today
 	const goToToday = useCallback(() => {
@@ -220,8 +294,32 @@ export default function Home() {
 	// Handle pull-to-refresh
 	const onRefresh = useCallback(async () => {
 		setRefreshing(true);
-		await fetchJobs();
-	}, [fetchJobs]);
+		
+		// Clear cache for current date and fetch fresh data
+		const currentDateKey = formatDateKey(currentDate);
+		const prevDateKey = formatDateKey(getPrevDate(currentDate));
+		const nextDateKey = formatDateKey(getNextDate(currentDate));
+		
+		// Remove these dates from cache to force a refresh
+		setJobsCache(prevCache => {
+			const newCache = { ...prevCache };
+			delete newCache[currentDateKey];
+			delete newCache[prevDateKey];
+			delete newCache[nextDateKey];
+			return newCache;
+		});
+		
+		// Fetch fresh data for current date
+		await fetchJobsForDate(currentDate);
+		
+		// Also prefetch adjacent dates
+		await Promise.all([
+			fetchJobsForDate(getPrevDate(currentDate)),
+			fetchJobsForDate(getNextDate(currentDate))
+		]);
+		
+		setRefreshing(false);
+	}, [currentDate, formatDateKey, getPrevDate, getNextDate, fetchJobsForDate]);
 
 	return (
 		<SafeAreaView className="flex-1 bg-background">
@@ -232,33 +330,24 @@ export default function Home() {
 				onToday={goToToday}
 			/>
 
-			{loading && !refreshing ? (
-				<View className="flex-1 items-center justify-center">
-					<Text>Loading jobs...</Text>
-				</View>
-			) : (
-				<ScrollView
-					className="flex-1"
-					contentContainerStyle={{ paddingBottom: 20 }}
-					refreshControl={
-						<RefreshControl
-							refreshing={refreshing}
-							onRefresh={onRefresh}
-							colors={[isDark ? colors.light.primary : colors.dark.primary]}
-							tintColor={isDark ? colors.dark.primary : colors.light.primary}
-						/>
-					}
-				>
-					<View style={{ height: TOTAL_HEIGHT, position: "relative" }}>
-						<HourMarkers hourHeight={HOUR_HEIGHT} />
-						{renderJobs()}
-						<CurrentTimeIndicator
-							hourHeight={HOUR_HEIGHT}
-							visible={isSameDay(currentDate, new Date())}
-						/>
+			<GestureHandlerRootView style={{ flex: 1 }}>
+				{loading && !refreshing ? (
+					<View className="flex-1 items-center justify-center">
+						<Text>Loading jobs...</Text>
 					</View>
-				</ScrollView>
-			)}
+				) : (
+					<SwipeableDateView
+						jobs={jobsCache}
+						currentDate={currentDate}
+						onChangeDate={setCurrentDate}
+						onRefresh={onRefresh}
+						refreshing={refreshing}
+						hourHeight={HOUR_HEIGHT}
+						isDark={isDark}
+						primaryColor={isDark ? colors.dark.primary : colors.light.primary}
+					/>
+				)}
+			</GestureHandlerRootView>
 		</SafeAreaView>
 	);
 }
