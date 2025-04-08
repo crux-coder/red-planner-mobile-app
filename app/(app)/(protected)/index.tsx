@@ -115,7 +115,6 @@ export default function Home() {
 
 	// Calculate the height for each hour slot (60px per hour)
 	const HOUR_HEIGHT = 60;
-	const TOTAL_HEIGHT = HOUR_HEIGHT * 24;
 
 	// Helper function to format date as YYYY-MM-DD for cache keys
 	const formatDateKey = useCallback((date: Date) => {
@@ -139,17 +138,17 @@ export default function Home() {
 	useEffect(() => {
 		const loadInitialData = async () => {
 			setLoading(true);
-			
+
 			// Fetch data for yesterday, today, and tomorrow on initial load
 			const today = new Date();
 			const yesterday = getPrevDate(today);
 			const tomorrow = getNextDate(today);
-			
+
 			try {
 				await Promise.all([
 					fetchJobsForDate(yesterday),
 					fetchJobsForDate(today),
-					fetchJobsForDate(tomorrow)
+					fetchJobsForDate(tomorrow),
 				]);
 			} catch (error) {
 				console.error("Error loading initial data:", error);
@@ -157,7 +156,7 @@ export default function Home() {
 				setLoading(false);
 			}
 		};
-		
+
 		loadInitialData();
 	}, []);
 
@@ -167,25 +166,27 @@ export default function Home() {
 		const fetchAllNeededDates = async () => {
 			const prevDate = getPrevDate(currentDate);
 			const nextDate = getNextDate(currentDate);
-			
+
 			const currentDateKey = formatDateKey(currentDate);
 			const prevDateKey = formatDateKey(prevDate);
 			const nextDateKey = formatDateKey(nextDate);
-			
+
 			// Check which dates we need to fetch
 			const datesToFetch = [
 				{ date: currentDate, key: currentDateKey },
 				{ date: prevDate, key: prevDateKey },
 				{ date: nextDate, key: nextDateKey },
 			].filter(({ key }) => !jobsCache[key]);
-			
+
 			if (datesToFetch.length > 0) {
 				setLoading(true);
-				await Promise.all(datesToFetch.map(({ date }) => fetchJobsForDate(date)));
+				await Promise.all(
+					datesToFetch.map(({ date }) => fetchJobsForDate(date)),
+				);
 				setLoading(false);
 			}
 		};
-		
+
 		fetchAllNeededDates();
 	}, [currentDate]);
 
@@ -195,49 +196,50 @@ export default function Home() {
 		const prefetchAdditionalDays = async () => {
 			const twoDaysBefore = new Date(currentDate);
 			twoDaysBefore.setDate(currentDate.getDate() - 2);
-			
+
 			const twoDaysAfter = new Date(currentDate);
 			twoDaysAfter.setDate(currentDate.getDate() + 2);
-			
+
 			const twoDaysBeforeKey = formatDateKey(twoDaysBefore);
 			const twoDaysAfterKey = formatDateKey(twoDaysAfter);
-			
+
 			// Only fetch if not already in cache
 			const additionalFetches = [];
-			
+
 			if (!jobsCache[twoDaysBeforeKey]) {
 				additionalFetches.push(fetchJobsForDate(twoDaysBefore));
 			}
-			
+
 			if (!jobsCache[twoDaysAfterKey]) {
 				additionalFetches.push(fetchJobsForDate(twoDaysAfter));
 			}
-			
+
 			if (additionalFetches.length > 0) {
 				// No need to set loading state for these additional prefetches
 				await Promise.all(additionalFetches);
 			}
 		};
-		
+
 		// Run the prefetch after a short delay to prioritize the main view
 		const timeoutId = setTimeout(() => {
 			prefetchAdditionalDays();
 		}, 1000);
-		
+
 		return () => clearTimeout(timeoutId);
 	}, [currentDate, jobsCache]);
 
-	const fetchJobsForDate = useCallback(async (date: Date) => {
-		try {
-			// Format the date for query (YYYY-MM-DD)
-			const dateStr = date.toISOString().split("T")[0];
-			const dateKey = formatDateKey(date);
+	const fetchJobsForDate = useCallback(
+		async (date: Date) => {
+			try {
+				// Format the date for query (YYYY-MM-DD)
+				const dateStr = date.toISOString().split("T")[0];
+				const dateKey = formatDateKey(date);
 
-			// Fetch jobs for the specified date with all related data
-			const { data, error } = await supabase
-				.from("jobs")
-				.select(
-					`
+				// Fetch jobs for the specified date with all related data
+				const { data, error } = await supabase
+					.from("jobs")
+					.select(
+						`
 					*,
 					project:projects(*),
 					people_assignments:job_people_assignments(
@@ -253,26 +255,27 @@ export default function Home() {
 						transportation:transportation(*)
 					)
 				`,
-				)
-				.gte("start_date", `${dateStr}T00:00:00`)
-				.lt("end_date", `${dateStr}T23:59:59`)
-				.order("start_date", { ascending: true });
+					)
+					.gte("start_date", `${dateStr}T00:00:00`)
+					.lt("end_date", `${dateStr}T23:59:59`)
+					.order("start_date", { ascending: true });
 
-			if (error) {
-				console.error("Error fetching jobs:", error);
-				return;
+				if (error) {
+					console.error("Error fetching jobs:", error);
+					return;
+				}
+
+				// Update the jobs cache with the fetched data
+				setJobsCache((prevCache) => ({
+					...prevCache,
+					[dateKey]: data || [],
+				}));
+			} catch (error) {
+				console.error("Error:", error);
 			}
-
-			// Update the jobs cache with the fetched data
-			setJobsCache(prevCache => ({
-				...prevCache,
-				[dateKey]: data || []
-			}));
-			
-		} catch (error) {
-			console.error("Error:", error);
-		}
-	}, [formatDateKey]);
+		},
+		[formatDateKey],
+	);
 
 	// Function to navigate to previous day
 	const goToPreviousDay = useCallback(() => {
@@ -294,30 +297,30 @@ export default function Home() {
 	// Handle pull-to-refresh
 	const onRefresh = useCallback(async () => {
 		setRefreshing(true);
-		
+
 		// Clear cache for current date and fetch fresh data
 		const currentDateKey = formatDateKey(currentDate);
 		const prevDateKey = formatDateKey(getPrevDate(currentDate));
 		const nextDateKey = formatDateKey(getNextDate(currentDate));
-		
+
 		// Remove these dates from cache to force a refresh
-		setJobsCache(prevCache => {
+		setJobsCache((prevCache) => {
 			const newCache = { ...prevCache };
 			delete newCache[currentDateKey];
 			delete newCache[prevDateKey];
 			delete newCache[nextDateKey];
 			return newCache;
 		});
-		
+
 		// Fetch fresh data for current date
 		await fetchJobsForDate(currentDate);
-		
+
 		// Also prefetch adjacent dates
 		await Promise.all([
 			fetchJobsForDate(getPrevDate(currentDate)),
-			fetchJobsForDate(getNextDate(currentDate))
+			fetchJobsForDate(getNextDate(currentDate)),
 		]);
-		
+
 		setRefreshing(false);
 	}, [currentDate, formatDateKey, getPrevDate, getNextDate, fetchJobsForDate]);
 
