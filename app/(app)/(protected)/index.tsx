@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
 	ScrollView,
 	View,
@@ -16,6 +16,12 @@ import { supabase } from "@/config/supabase";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { colors } from "@/constants/colors";
 import { getJobStatusColor, getJobTypeColor } from "@/lib/colors";
+
+// Import new components
+import JobCard from "@/app/components/home/JobCard";
+import HourMarkers from "@/app/components/home/HourMarkers";
+import CurrentTimeIndicator from "@/app/components/home/CurrentTimeIndicator";
+import DateNavigator from "@/app/components/home/DateNavigator";
 
 // Define job related types
 export type JobType = "survey" | "data" | "cad" | "qa";
@@ -109,19 +115,11 @@ export default function Home() {
 	const HOUR_HEIGHT = 60;
 	const TOTAL_HEIGHT = HOUR_HEIGHT * 24;
 
-	// Format date for display
-	const formattedDate = currentDate.toLocaleDateString("en-US", {
-		weekday: "long",
-		year: "numeric",
-		month: "long",
-		day: "numeric",
-	});
-
 	useEffect(() => {
 		fetchJobs();
 	}, [currentDate]);
 
-	const fetchJobs = async () => {
+	const fetchJobs = useCallback(async () => {
 		try {
 			setLoading(true);
 
@@ -165,203 +163,78 @@ export default function Home() {
 			setLoading(false);
 			setRefreshing(false);
 		}
-	};
+	}, [currentDate]);
 
 	// Calculate position and height for a job based on its start and end times
-	const getJobPosition = (job: Job) => {
-		if (!job.start_date || !job.end_date) return { top: 0, height: 0 };
+	const getJobPosition = useCallback(
+		(job: Job) => {
+			if (!job.start_date || !job.end_date) return { top: 0, height: 0 };
 
-		const startDate = new Date(job.start_date);
-		const endDate = new Date(job.end_date);
+			const startDate = new Date(job.start_date);
+			const endDate = new Date(job.end_date);
 
-		// Calculate hours from midnight for positioning
-		const startHours = startDate.getHours() + startDate.getMinutes() / 60;
-		const endHours = endDate.getHours() + endDate.getMinutes() / 60;
+			// Calculate hours since midnight
+			const startHours = startDate.getHours() + startDate.getMinutes() / 60;
+			const endHours = endDate.getHours() + endDate.getMinutes() / 60;
 
-		// Calculate top position and height
-		const top = startHours * HOUR_HEIGHT;
-		const height = (endHours - startHours) * HOUR_HEIGHT;
+			// Calculate position and height
+			const top = startHours * HOUR_HEIGHT;
+			const height = (endHours - startHours) * HOUR_HEIGHT;
 
-		return { top, height };
-	};
-
-	// Get color based on job type
-	const getJobColor = (jobType: JobType) => {
-		return isDark
-			? getJobTypeColor(jobType, "bgDark")
-			: getJobTypeColor(jobType, "bg");
-	};
-
-	// Get status indicator color
-	const getStatusColor = (status: JobStatus) => {
-		return getJobStatusColor(status, "border");
-	};
-
-	// Format status for display
-	const formatStatus = (status: JobStatus) => {
-		return status
-			.split("_")
-			.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-			.join(" ");
-	};
-
-	// Generate hour markers for the day
-	const renderHourMarkers = () => {
-		const hours = [];
-		for (let i = 0; i < 24; i++) {
-			const formattedHour = `${i.toString().padStart(2, "0")}:00`;
-			hours.push(
-				<View key={i} style={[styles.hourMarker, { top: i * HOUR_HEIGHT }]}>
-					<Text style={[styles.hourText, isDark && styles.hourTextDark]}>
-						{formattedHour}
-					</Text>
-					<View style={[styles.hourLine, isDark && styles.hourLineDark]} />
-				</View>,
-			);
-		}
-		return hours;
-	};
+			return { top, height };
+		},
+		[HOUR_HEIGHT],
+	);
 
 	// Render jobs as positioned elements on the timeline
-	const renderJobs = () => {
+	const renderJobs = useCallback(() => {
 		return jobs.map((job) => {
 			if (!job.start_date || !job.end_date) return null;
 
 			const { top, height } = getJobPosition(job);
 			if (height <= 0) return null;
 
-			const jobColor = getJobColor(job.type);
-			const statusColor = getStatusColor(job.status);
-			const jobTextColor = getJobTypeColor(job.type, "text");
-
-			// Get assigned people names
-			const assignedPeople = job.people_assignments
-				?.map((assignment) =>
-					assignment.user
-						? `${assignment.user.first_name || ""} ${assignment.user.last_name || ""}`.trim()
-						: null,
-				)
-				.filter(Boolean)
-				.join(", ");
-
-			// Get project name
-			const projectName = job.project?.name || "No Project";
-
-			return (
-				<TouchableOpacity
-					key={job.id}
-					style={[
-						styles.jobItem,
-						{
-							top,
-							height: height - 4, // Reduce height slightly to create space between jobs
-							backgroundColor: jobColor,
-							borderLeftWidth: 4,
-							borderLeftColor: getJobTypeColor(job.type, "border"),
-							marginBottom: 4, // Add margin between jobs
-						},
-					]}
-					activeOpacity={0.7} // Increase active opacity (lower value = more opacity change)
-					onPress={() =>
-						router.push({
-							pathname: "/modal/job",
-							params: { id: job.id },
-						})
-					}
-				>
-					<View style={styles.jobHeader}>
-						<Text style={[styles.jobTitle, { color: jobTextColor }]}>
-							{job.job_number}
-						</Text>
-						<View
-							style={[styles.statusIndicator, { backgroundColor: statusColor }]}
-						>
-							<Text style={styles.statusText}>{formatStatus(job.status)}</Text>
-						</View>
-					</View>
-
-					<Text style={[styles.jobProject, { color: jobTextColor }]}>
-						{projectName}
-					</Text>
-
-					{height > 50 && (
-						<>
-							{assignedPeople && (
-								<Text
-									style={[styles.jobPeople, { color: jobTextColor }]}
-									numberOfLines={1}
-								>
-									People: {assignedPeople}
-								</Text>
-							)}
-
-							{job.notes && (
-								<Text
-									style={[styles.jobDescription, { color: jobTextColor }]}
-									numberOfLines={Math.floor(height / 20) - 3}
-								>
-									{job.notes}
-								</Text>
-							)}
-						</>
-					)}
-				</TouchableOpacity>
-			);
+			return <JobCard key={job.id} job={job} top={top} height={height} />;
 		});
-	};
+	}, [jobs, getJobPosition]);
 
 	// Function to navigate to previous day
-	const goToPreviousDay = () => {
+	const goToPreviousDay = useCallback(() => {
 		const prevDay = new Date(currentDate);
 		prevDay.setDate(prevDay.getDate() - 1);
 		setCurrentDate(prevDay);
-	};
+	}, [currentDate]);
 
 	// Function to navigate to next day
-	const goToNextDay = () => {
+	const goToNextDay = useCallback(() => {
 		const nextDay = new Date(currentDate);
 		nextDay.setDate(nextDay.getDate() + 1);
 		setCurrentDate(nextDay);
-	};
+	}, [currentDate]);
 
 	// Function to go to today
-	const goToToday = () => {
+	const goToToday = useCallback(() => {
 		setCurrentDate(new Date());
-	};
+	}, []);
 
 	// Handle pull-to-refresh
-	const onRefresh = async () => {
+	const onRefresh = useCallback(async () => {
 		setRefreshing(true);
 		await fetchJobs();
-	};
+	}, [fetchJobs]);
 
 	return (
 		<SafeAreaView className="flex-1 bg-background">
-			<View className="p-4">
-				<View className="flex-row justify-between items-center mb-2">
-					<H1>{formattedDate}</H1>
-				</View>
-
-				<View className="flex-row justify-between items-center mb-4">
-					<Text className="text-primary font-medium" onPress={goToPreviousDay}>
-						Previous Day
-					</Text>
-					<Text className="text-primary font-medium" onPress={goToToday}>
-						Today
-					</Text>
-					<Text className="text-primary font-medium" onPress={goToNextDay}>
-						Next Day
-					</Text>
-				</View>
-			</View>
+			<DateNavigator
+				currentDate={currentDate}
+				onPreviousDay={goToPreviousDay}
+				onNextDay={goToNextDay}
+				onToday={goToToday}
+			/>
 
 			{loading && !refreshing ? (
 				<View className="flex-1 items-center justify-center">
 					<Text>Loading jobs...</Text>
-				</View>
-			) : jobs.length === 0 ? (
-				<View className="flex-1 items-center justify-center p-4">
-					<Muted className="text-center">No jobs scheduled for this day</Muted>
 				</View>
 			) : (
 				<ScrollView
@@ -377,21 +250,11 @@ export default function Home() {
 					}
 				>
 					<View style={{ height: TOTAL_HEIGHT, position: "relative" }}>
-						{renderHourMarkers()}
+						<HourMarkers hourHeight={HOUR_HEIGHT} />
 						{renderJobs()}
-
-						{/* Current time indicator */}
-						<View
-							style={[
-								styles.currentTimeIndicator,
-								{
-									top:
-										(new Date().getHours() + new Date().getMinutes() / 60) *
-										HOUR_HEIGHT,
-									display: isSameDay(currentDate, new Date()) ? "flex" : "none",
-								},
-								isDark && styles.currentTimeIndicatorDark,
-							]}
+						<CurrentTimeIndicator
+							hourHeight={HOUR_HEIGHT}
+							visible={isSameDay(currentDate, new Date())}
 						/>
 					</View>
 				</ScrollView>
@@ -409,84 +272,4 @@ function isSameDay(date1: Date, date2: Date) {
 	);
 }
 
-const styles = StyleSheet.create({
-	hourMarker: {
-		position: "absolute",
-		left: 0,
-		right: 0,
-		flexDirection: "row",
-		alignItems: "center",
-		paddingLeft: 10,
-	},
-	hourText: {
-		width: 50,
-		fontSize: 12,
-		color: "#666",
-	},
-	hourTextDark: {
-		color: "#aaa",
-	},
-	hourLine: {
-		flex: 1,
-		height: 1,
-		backgroundColor: "#e0e0e0",
-	},
-	hourLineDark: {
-		backgroundColor: "#333",
-	},
-	jobItem: {
-		position: "absolute",
-		left: 70,
-		right: 10,
-		borderRadius: 4,
-		padding: 8,
-		overflow: "hidden",
-	},
-	jobHeader: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		marginBottom: 2,
-	},
-	jobTitle: {
-		fontWeight: "bold",
-		color: "white",
-		fontSize: 14,
-	},
-	statusIndicator: {
-		paddingHorizontal: 6,
-		paddingVertical: 2,
-		borderRadius: 10,
-	},
-	statusText: {
-		color: "white",
-		fontSize: 10,
-		fontWeight: "bold",
-	},
-	jobProject: {
-		color: "white",
-		fontSize: 12,
-		marginBottom: 2,
-	},
-	jobPeople: {
-		color: "white",
-		fontSize: 12,
-		marginTop: 2,
-	},
-	jobDescription: {
-		color: "white",
-		fontSize: 12,
-		marginTop: 4,
-	},
-	currentTimeIndicator: {
-		position: "absolute",
-		left: 0,
-		right: 0,
-		height: 2,
-		backgroundColor: "red",
-		zIndex: 10,
-	},
-	currentTimeIndicatorDark: {
-		backgroundColor: "#ff6b6b",
-	},
-});
+const styles = StyleSheet.create({});

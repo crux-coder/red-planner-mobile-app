@@ -34,11 +34,21 @@ export default function ProtectedLayout() {
 			<Tabs.Screen
 				name="index"
 				options={{
-					title: "Home",
+					title: "Schedule",
 					tabBarIcon: ({ color, size }) => (
 						<Ionicons name="calendar" size={size} color={color} />
 					),
-					tabBarLabel: "Planner",
+					tabBarLabel: "Schedule",
+				}}
+			/>
+			<Tabs.Screen
+				name="tasks"
+				options={{
+					title: "Tasks",
+					tabBarIcon: ({ color, size }) => (
+						<Ionicons name="checkbox-outline" size={size} color={color} />
+					),
+					tabBarLabel: "Tasks",
 				}}
 			/>
 			<Tabs.Screen
