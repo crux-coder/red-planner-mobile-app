@@ -1,7 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { ActivityIndicator, View, SafeAreaView } from "react-native";
+import { ActivityIndicator, View, SafeAreaView, Alert } from "react-native";
 import * as z from "zod";
+import { useState } from "react";
 
 import { Image } from "@/components/image";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,8 @@ import { Text } from "@/components/ui/text";
 import { H1, Muted } from "@/components/ui/typography";
 import { useSupabase } from "@/context/supabase-provider";
 import { Link } from "expo-router";
+import { colors } from "@/constants/colors";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 const formSchema = z.object({
 	email: z.string().email("Please enter a valid email address."),
@@ -21,6 +24,9 @@ const formSchema = z.object({
 
 export default function WelcomeScreen() {
 	const { signInWithPassword } = useSupabase();
+	const [loginError, setLoginError] = useState<string | null>(null);
+	const { colorScheme } = useColorScheme();
+	const isDark = colorScheme === "dark";
 
 	const form = useForm<z.infer<typeof formSchema>>({
 		resolver: zodResolver(formSchema),
@@ -32,10 +38,25 @@ export default function WelcomeScreen() {
 
 	async function onSubmit(data: z.infer<typeof formSchema>) {
 		try {
+			// Clear any previous errors
+			setLoginError(null);
+
+			// Attempt to sign in
 			await signInWithPassword(data.email, data.password);
+
+			// If we get here, sign in was successful
 			form.reset();
-		} catch (error: Error | any) {
-			console.log(error.message);
+		} catch (error: any) {
+			console.error("Login error:", error.message);
+
+			// Handle specific error types
+			if (error.message.includes("Invalid login credentials")) {
+				setLoginError("Incorrect email or password. Please try again.");
+			} else if (error.message.includes("Email not confirmed")) {
+				setLoginError("Please verify your email address before signing in.");
+			} else {
+				setLoginError(error.message || "An error occurred during sign in.");
+			}
 		}
 	}
 
@@ -52,6 +73,20 @@ export default function WelcomeScreen() {
 				<Muted className="text-center mb-4">
 					Please sign in to access your planner
 				</Muted>
+
+				{loginError && (
+					<View className="w-full bg-destructive/20 p-3 rounded-md mb-2">
+						<Text
+							style={{
+								color: isDark
+									? colors.dark.destructive
+									: colors.light.destructive,
+							}}
+						>
+							{loginError}
+						</Text>
+					</View>
+				)}
 
 				<Form {...form}>
 					<View className="w-full gap-4">

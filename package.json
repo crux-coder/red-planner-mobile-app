@@ -5,9 +5,10 @@
 	"scripts": {
 		"start": "expo start",
 		"web": "expo start --web",
-		"android": "expo start --android",
-		"ios": "expo start --ios",
-		"lint": "eslint . --fix"
+		"android": "expo run:android",
+		"ios": "expo run:ios",
+		"lint": "eslint . --fix",
+		"prebuild": "expo prebuild"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^3.10.0",
