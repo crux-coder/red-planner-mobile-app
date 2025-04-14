@@ -7,8 +7,8 @@ import {
 	RefreshControl,
 	Alert,
 	Pressable,
+	SafeAreaView,
 } from "react-native";
-import { SafeAreaView } from "@/components/safe-area-view";
 import { Text } from "@/components/ui/text";
 import { H1, Muted } from "@/components/ui/typography";
 import { supabase } from "@/config/supabase";
@@ -17,6 +17,7 @@ import { colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { ProjectTask } from "@/app/models/task";
 import { format, parseISO, isToday, isPast, isFuture } from "date-fns";
+import { useSupabase } from "@/context/supabase-provider";
 
 type TabType = "todo" | "completed";
 
@@ -27,6 +28,7 @@ export default function Tasks() {
 	const [activeTab, setActiveTab] = useState<TabType>("todo");
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
+	const { userProfile } = useSupabase();
 
 	// Fetch tasks based on the active tab
 	const fetchTasks = useCallback(async () => {
@@ -36,7 +38,7 @@ export default function Tasks() {
 			// Only fetch tasks matching the current tab's completion status
 			const isCompleted = activeTab === "completed";
 
-			const { data, error } = await supabase
+			let query = supabase
 				.from("project_tasks")
 				.select(
 					`
@@ -45,9 +47,20 @@ export default function Tasks() {
           assigned_to:users(*)
         `,
 				)
-				.eq("completed", isCompleted)
+				.eq("completed", isCompleted);
+
+			// Filter tasks based on user ID
+			if (userProfile) {
+				console.log("Filtering tasks for user ID:", userProfile.id);
+				query = query.eq("assigned_to", userProfile.id);
+			}
+
+			// Add ordering
+			query = query
 				.order("due_at", { ascending: true })
 				.order("created_at", { ascending: false });
+
+			const { data, error } = await query;
 
 			if (error) {
 				console.error("Error fetching tasks:", error);
@@ -77,7 +90,7 @@ export default function Tasks() {
 			setLoading(false);
 			setRefreshing(false);
 		}
-	}, [activeTab]);
+	}, [activeTab, userProfile]);
 
 	// Load tasks when the component mounts or the active tab changes
 	useEffect(() => {

@@ -1,23 +1,29 @@
-import { View, TouchableOpacity, StyleSheet } from "react-native";
+import { View, TouchableOpacity, StyleSheet, ViewStyle } from "react-native";
 import { Text } from "@/components/ui/text";
 import { getJobStatusColor, getJobTypeColor } from "@/lib/colors";
-import { Job, JobStatus, JobType } from "@/app/(app)/(protected)/index";
+import { Job, JobStatus } from "@/app/(app)/(protected)/schedule/index";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/useColorScheme";
 
 interface JobCardProps {
 	job: Job;
-	top: number;
-	height: number;
+	positionStyle: ViewStyle;
 }
 
-export default function JobCard({ job, top, height }: JobCardProps) {
+export default function JobCard({ job, positionStyle }: JobCardProps) {
 	const router = useRouter();
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
 
 	if (!job.start_date || !job.end_date) return null;
-	if (height <= 0) return null;
+
+	// Only check height if it exists in positionStyle
+	if (
+		positionStyle.height !== undefined &&
+		typeof positionStyle.height === "number" &&
+		positionStyle.height <= 0
+	)
+		return null;
 
 	const jobColor = isDark
 		? getJobTypeColor(job.type, "bgDark")
@@ -55,18 +61,18 @@ export default function JobCard({ job, top, height }: JobCardProps) {
 			style={[
 				styles.jobItem,
 				{
-					top,
-					height: height, // Reduce height slightly to create space between jobs
+					...positionStyle,
 					backgroundColor: jobColor,
 					borderLeftWidth: 4,
 					borderLeftColor: getJobTypeColor(job.type, "border"),
-					marginBottom: 4, // Add margin between jobs
+					marginBottom: 4,
+					marginLeft: 4,
 				},
 			]}
 			activeOpacity={0.7}
 			onPress={() =>
 				router.push({
-					pathname: "/modal/job",
+					pathname: "/(app)/(protected)/schedule/job",
 					params: { id: job.id },
 				})
 			}

@@ -6,7 +6,7 @@ import {
 	TouchableOpacity,
 	ActivityIndicator,
 	Alert,
-	Platform,
+	SafeAreaView,
 } from "react-native";
 import { useForm } from "react-hook-form";
 import * as ImagePicker from "expo-image-picker";
@@ -16,10 +16,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
-import { H1, H3, Muted } from "@/components/ui/typography";
+import { H1 } from "@/components/ui/typography";
 import { useSupabase } from "@/context/supabase-provider";
 import { Form, FormField, FormInput } from "@/components/ui/form";
-import { SafeAreaView } from "@/components/safe-area-view";
 import { colors } from "@/constants/colors";
 import { supabase } from "@/config/supabase";
 import { useColorScheme } from "@/lib/useColorScheme";

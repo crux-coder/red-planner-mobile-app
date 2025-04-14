@@ -13,10 +13,9 @@ export default function AppLayout() {
 
 	return (
 		<Stack screenOptions={{ headerShown: false, gestureEnabled: false }}>
-			<Stack.Screen name="(protected)/schedule" />
-			<Stack.Screen name="welcome" />
+			<Stack.Screen name="index" />
 			<Stack.Screen
-				name="modal"
+				name="job"
 				options={{
 					presentation: "modal",
 					headerShown: true,

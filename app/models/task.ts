@@ -1,4 +1,4 @@
-import { Project, UserProfile } from "@/app/(app)/(protected)/index";
+import { Project, UserProfile } from "@/app/(app)/(protected)/schedule/index";
 
 export interface ProjectTask {
 	id: string;

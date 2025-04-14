@@ -1,15 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, View, SafeAreaView } from "react-native";
 import * as z from "zod";
 
 import { Image } from "@/components/image";
-import { SafeAreaView } from "@/components/safe-area-view";
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormInput } from "@/components/ui/form";
 import { Text } from "@/components/ui/text";
 import { H1, Muted } from "@/components/ui/typography";
 import { useSupabase } from "@/context/supabase-provider";
+import { Link } from "expo-router";
 
 const formSchema = z.object({
 	email: z.string().email("Please enter a valid email address."),
@@ -40,8 +40,8 @@ export default function WelcomeScreen() {
 	}
 
 	return (
-		<SafeAreaView className="flex-1 bg-background p-4">
-			<View className="flex-1 items-center justify-center gap-y-4 web:m-4">
+		<SafeAreaView className="flex-1 bg-background">
+			<View className="flex-1 items-center justify-center gap-y-4 web:m-4 p-4">
 				<View className="flex flex-row w-full items-center justify-center">
 					<Image
 						source={require("@/assets/logo.png")}

@@ -1,8 +1,8 @@
 {
 	"expo": {
-		"name": "ExpoSupabaseStarter",
-		"slug": "ExpoSupabaseStarter",
-		"scheme": "expo-supabase-starter",
+		"name": "RedPlanner",
+		"slug": "RedPlanner",
+		"scheme": "red-planner",
 		"version": "1.0.0",
 		"orientation": "portrait",
 		"icon": "./assets/icon.png",
@@ -23,7 +23,8 @@
 					"resizeMode": "cover",
 					"image": "./assets/splash-dark.png"
 				}
-			}
+			},
+			"bundleIdentifier": "uk.co.redlaser"
 		},
 		"android": {
 			"adaptiveIcon": {
@@ -38,11 +39,20 @@
 					"resizeMode": "cover",
 					"image": "./assets/splash-dark.png"
 				}
-			}
+			},
+			"package": "uk.co.redlaser"
 		},
 		"experiments": {
 			"typedRoutes": true
 		},
-		"plugins": ["expo-router", "expo-secure-store"]
+		"plugins": ["expo-router", "expo-secure-store"],
+		"extra": {
+			"router": {
+				"origin": false
+			},
+			"eas": {
+				"projectId": "c24570eb-25fa-46a6-8a32-4a699fe86a36"
+			}
+		}
 	}
 }

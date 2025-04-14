@@ -32,7 +32,7 @@ export default function ProtectedLayout() {
 			}}
 		>
 			<Tabs.Screen
-				name="index"
+				name="schedule"
 				options={{
 					title: "Schedule",
 					tabBarIcon: ({ color, size }) => (
