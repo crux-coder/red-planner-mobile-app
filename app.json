@@ -3,7 +3,7 @@
 		"name": "RedPlanner",
 		"slug": "RedPlanner",
 		"scheme": "red-planner",
-		"version": "1.0.0",
+		"version": "1.0.2",
 		"orientation": "portrait",
 		"icon": "./assets/icon.png",
 		"userInterfaceStyle": "automatic",
@@ -24,7 +24,10 @@
 					"image": "./assets/splash-dark.png"
 				}
 			},
-			"bundleIdentifier": "uk.co.redlaser"
+			"bundleIdentifier": "uk.co.redlaser",
+			"infoPlist": {
+				"NSPhotoLibraryUsageDescription": "We need access to your photo library so you can select and upload images to change your profile photo."
+			}
 		},
 		"android": {
 			"adaptiveIcon": {
