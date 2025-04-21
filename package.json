@@ -1,6 +1,6 @@
 {
 	"name": "expo-supabase-starter",
-	"version": "1.0.0",
+	"version": "1.0.2",
 	"main": "expo-router/entry",
 	"scripts": {
 		"start": "expo start",
@@ -8,7 +8,7 @@
 		"android": "expo run:android",
 		"ios": "expo run:ios",
 		"lint": "eslint . --fix",
-		"prebuild": "expo prebuild"
+		"prebuild": "expo prebuild --clean --android"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^3.10.0",
