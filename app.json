@@ -43,7 +43,8 @@
 					"image": "./assets/splash-dark.png"
 				}
 			},
-			"package": "uk.co.redlaser"
+			"package": "uk.co.redlaser",
+			"permissions": ["READ_MEDIA_IMAGES"]
 		},
 		"experiments": {
 			"typedRoutes": true
