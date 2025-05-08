@@ -6,8 +6,8 @@ import {
 	TouchableOpacity,
 	ActivityIndicator,
 	Alert,
-	SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useForm } from "react-hook-form";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -240,7 +240,7 @@ export default function Settings() {
 	}
 
 	return (
-		<SafeAreaView className="flex-1 bg-background">
+		<SafeAreaView className="flex-1 bg-background" edges={['top']}>
 			<View className="flex-1 flex-col justify-between">
 				<ScrollView className="p-4">
 					<H1 className="text-center mb-6">My Account</H1>

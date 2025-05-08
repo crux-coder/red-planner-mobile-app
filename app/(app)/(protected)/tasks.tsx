@@ -7,8 +7,8 @@ import {
 	RefreshControl,
 	Alert,
 	Pressable,
-	SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/text";
 import { H1, Muted } from "@/components/ui/typography";
 import { supabase } from "@/config/supabase";
@@ -251,7 +251,7 @@ export default function Tasks() {
 	);
 
 	return (
-		<SafeAreaView className="flex-1 bg-background">
+		<SafeAreaView className="flex-1 bg-background" edges={['top']}>
 			<View className="p-4">
 				<H1>Tasks</H1>
 			</View>
