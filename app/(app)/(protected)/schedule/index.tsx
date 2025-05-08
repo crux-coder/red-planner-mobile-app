@@ -4,8 +4,8 @@ import {
 	ScrollView,
 	RefreshControl,
 	TouchableOpacity,
-	SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/text";
 import { supabase } from "@/config/supabase";
 import { useColorScheme } from "@/lib/useColorScheme";
@@ -242,41 +242,41 @@ export default function Home() {
 	const currentJobs = jobsCache[currentDateKey] || [];
 
 	return (
-		<SafeAreaView className="flex-1 bg-background">
+		<SafeAreaView className="flex-1 bg-background" edges={['top']}>
+			{/* Date Navigation Header */}
+			<View className="flex-row items-center justify-between p-4 border-b border-border">
+				<TouchableOpacity onPress={goToPreviousDay}>
+					<Ionicons
+						name="chevron-back"
+						size={24}
+						color={isDark ? colors.dark.foreground : colors.light.foreground}
+					/>
+				</TouchableOpacity>
+
+				<TouchableOpacity onPress={goToToday}>
+					<Text
+						className="text-lg font-semibold"
+						style={[
+							{
+								color: isDark
+									? colors.dark.foreground
+									: colors.light.foreground,
+							},
+						]}
+					>
+						{formattedDate}
+					</Text>
+				</TouchableOpacity>
+
+				<TouchableOpacity onPress={goToNextDay}>
+					<Ionicons
+						name="chevron-forward"
+						size={24}
+						color={isDark ? colors.dark.foreground : colors.light.foreground}
+					/>
+				</TouchableOpacity>
+			</View>
 			<View className="flex-1 bg-background">
-				{/* Date Navigation Header */}
-				<View className="flex-row items-center justify-between p-4 border-b border-border">
-					<TouchableOpacity onPress={goToPreviousDay}>
-						<Ionicons
-							name="chevron-back"
-							size={24}
-							color={isDark ? colors.dark.foreground : colors.light.foreground}
-						/>
-					</TouchableOpacity>
-
-					<TouchableOpacity onPress={goToToday}>
-						<Text
-							className="text-lg font-semibold"
-							style={[
-								{
-									color: isDark
-										? colors.dark.foreground
-										: colors.light.foreground,
-								},
-							]}
-						>
-							{formattedDate}
-						</Text>
-					</TouchableOpacity>
-
-					<TouchableOpacity onPress={goToNextDay}>
-						<Ionicons
-							name="chevron-forward"
-							size={24}
-							color={isDark ? colors.dark.foreground : colors.light.foreground}
-						/>
-					</TouchableOpacity>
-				</View>
 
 				{/* Schedule View */}
 				<ScrollView
