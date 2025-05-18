@@ -21,6 +21,8 @@ import { useSupabase } from "@/context/supabase-provider";
 
 type TabType = "todo" | "completed";
 
+import { useFocusEffect } from "@react-navigation/native";
+
 export default function Tasks() {
 	const [tasks, setTasks] = useState<ProjectTask[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -92,10 +94,12 @@ export default function Tasks() {
 		}
 	}, [activeTab, userProfile]);
 
-	// Load tasks when the component mounts or the active tab changes
-	useEffect(() => {
-		fetchTasks();
-	}, [activeTab, fetchTasks]);
+	// Refresh tasks when navigating to this tab
+	useFocusEffect(
+		useCallback(() => {
+			fetchTasks();
+		}, [activeTab]),
+	);
 
 	const toggleTaskCompletion = async (task: ProjectTask) => {
 		try {
@@ -251,7 +255,7 @@ export default function Tasks() {
 	);
 
 	return (
-		<SafeAreaView className="flex-1 bg-background" edges={['top']}>
+		<SafeAreaView className="flex-1 bg-background" edges={["top"]}>
 			<View className="p-4">
 				<H1>Tasks</H1>
 			</View>

@@ -80,6 +80,8 @@ export interface Job {
 	}[];
 }
 
+import { useFocusEffect } from "@react-navigation/native";
+
 export default function Home() {
 	const [jobsCache, setJobsCache] = useState<Record<string, Job[]>>({});
 	const [loading, setLoading] = useState(true);
@@ -110,25 +112,27 @@ export default function Home() {
 		return nextDate;
 	}, []);
 
+	const loadInitialData = async () => {
+		setLoading(true);
+
+		// Fetch data for today
+		const today = new Date();
+
+		try {
+			await fetchJobsForDate(today);
+		} catch (error) {
+			console.error("Error loading initial data:", error);
+		} finally {
+			setLoading(false);
+		}
+	};
+
 	// Initial data loading
-	useEffect(() => {
-		const loadInitialData = async () => {
-			setLoading(true);
-
-			// Fetch data for today
-			const today = new Date();
-
-			try {
-				await fetchJobsForDate(today);
-			} catch (error) {
-				console.error("Error loading initial data:", error);
-			} finally {
-				setLoading(false);
-			}
-		};
-
-		loadInitialData();
-	}, []);
+	useFocusEffect(
+		useCallback(() => {
+			loadInitialData();
+		}, []),
+	);
 
 	// Refresh data for the current date
 	const handleRefresh = useCallback(async () => {
@@ -242,7 +246,7 @@ export default function Home() {
 	const currentJobs = jobsCache[currentDateKey] || [];
 
 	return (
-		<SafeAreaView className="flex-1 bg-background" edges={['top']}>
+		<SafeAreaView className="flex-1 bg-background" edges={["top"]}>
 			{/* Date Navigation Header */}
 			<View className="flex-row items-center justify-between p-4 border-b border-border">
 				<TouchableOpacity onPress={goToPreviousDay}>
@@ -277,7 +281,6 @@ export default function Home() {
 				</TouchableOpacity>
 			</View>
 			<View className="flex-1 bg-background">
-
 				{/* Schedule View */}
 				<ScrollView
 					className="flex-1 bg-background"

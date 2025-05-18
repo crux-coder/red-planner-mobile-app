@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { ActivityIndicator, View, SafeAreaView, Alert } from "react-native";
+import { ActivityIndicator, View, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import * as z from "zod";
 import { useState } from "react";
 
@@ -10,7 +10,6 @@ import { Form, FormField, FormInput } from "@/components/ui/form";
 import { Text } from "@/components/ui/text";
 import { H1, Muted } from "@/components/ui/typography";
 import { useSupabase } from "@/context/supabase-provider";
-import { Link } from "expo-router";
 import { colors } from "@/constants/colors";
 import { useColorScheme } from "@/lib/useColorScheme";
 
@@ -62,7 +61,17 @@ export default function WelcomeScreen() {
 
 	return (
 		<SafeAreaView className="flex-1 bg-background">
-			<View className="flex-1 items-center justify-center gap-y-4 web:m-4 p-4">
+			<KeyboardAvoidingView
+				behavior={Platform.OS === "ios" ? "padding" : "height"}
+				className="flex-1"
+				keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+			>
+				<ScrollView
+					contentContainerStyle={{ flexGrow: 1 }}
+					keyboardShouldPersistTaps="handled"
+					className="flex-1"
+				>
+					<View className="flex-1 items-center justify-center gap-y-4 web:m-4 p-4">
 				<View className="flex flex-row w-full items-center justify-center">
 					<Image
 						source={require("@/assets/logo.png")}
@@ -134,7 +143,9 @@ export default function WelcomeScreen() {
 						<Text>Sign In</Text>
 					)}
 				</Button>
-			</View>
+					</View>
+				</ScrollView>
+			</KeyboardAvoidingView>
 		</SafeAreaView>
 	);
 }

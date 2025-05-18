@@ -32,6 +32,16 @@ export default function ProtectedLayout() {
 			}}
 		>
 			<Tabs.Screen
+				name="timesheet"
+				options={{
+					title: "Timesheet",
+					tabBarIcon: ({ color, size }) => (
+						<Ionicons name="time-outline" size={size} color={color} />
+					),
+					tabBarLabel: "Timesheet",
+				}}
+			/>
+			<Tabs.Screen
 				name="schedule"
 				options={{
 					title: "Schedule",

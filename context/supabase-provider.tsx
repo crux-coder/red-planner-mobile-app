@@ -182,7 +182,7 @@ export const SupabaseProvider = ({ children }: SupabaseProviderProps) => {
 		const inProtectedGroup = segments[1] === "(protected)";
 
 		if (session && !inProtectedGroup) {
-			router.replace("/(app)/(protected)/schedule");
+			router.replace("/(app)/(protected)/timesheet");
 		} else if (!session) {
 			router.replace("/(app)/welcome");
 		}

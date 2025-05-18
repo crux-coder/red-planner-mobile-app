@@ -21,17 +21,17 @@ export const JobActions: React.FC<JobActionsProps> = ({
 		<View className="mb-4">
 			{status === "booked" && (
 				<TouchableOpacity
-					className="bg-blue-500 py-3 rounded-lg mb-2 flex-row justify-center items-center"
+					className="bg-green-200 border-green-500 border py-3 rounded-lg mb-2 flex-row justify-center items-center"
 					onPress={onStartJob}
 					disabled={updatingStatus}
 				>
 					{updatingStatus ? (
-						<ActivityIndicator size="small" color="white" />
+						<ActivityIndicator size="small" color="green" />
 					) : (
-						<Ionicons name="play" size={20} color="white" />
+						<Ionicons name="play" size={20} color="green" />
 					)}
-					<Text className="text-white font-medium ml-2">
-						{updatingStatus ? "Updating..." : "Start Work"}
+					<Text className="text-green-500 font-semibold ml-2">
+						{updatingStatus ? "Updating..." : "Start Job"}
 					</Text>
 				</TouchableOpacity>
 			)}
@@ -54,9 +54,9 @@ export const JobActions: React.FC<JobActionsProps> = ({
 			)}
 
 			{status === "completed" && (
-				<View className="bg-gray-200 py-3 rounded-lg mb-2 flex-row justify-center items-center">
+				<View className="bg-green-200 py-3 rounded-lg mb-2 flex-row justify-center items-center">
 					<Ionicons name="checkmark-done-circle" size={20} color="green" />
-					<Text className="text-gray-700 font-medium ml-2">Job Completed</Text>
+					<Text className="text-green-700 font-medium ml-2">Job Completed</Text>
 				</View>
 			)}
 		</View>
