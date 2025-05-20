@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
 	View,
 	ScrollView,
 	RefreshControl,
 	TouchableOpacity,
+	Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/text";
@@ -15,6 +16,7 @@ import { useSupabase } from "@/context/supabase-provider";
 import HourMarkers from "@/app/components/home/HourMarkers";
 import CurrentTimeIndicator from "@/app/components/home/CurrentTimeIndicator";
 import JobCard from "@/app/components/home/JobCard";
+import { useFocusEffect } from "@react-navigation/native";
 
 // Define job related types
 export type JobType = "survey" | "data" | "cad" | "qa";
@@ -80,8 +82,6 @@ export interface Job {
 	}[];
 }
 
-import { useFocusEffect } from "@react-navigation/native";
-
 export default function Home() {
 	const [jobsCache, setJobsCache] = useState<Record<string, Job[]>>({});
 	const [loading, setLoading] = useState(true);
@@ -90,9 +90,29 @@ export default function Home() {
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
 	const { userProfile } = useSupabase();
+	const scrollViewRef = useRef<ScrollView>(null);
 
 	// Calculate the height for each hour slot (60px per hour)
 	const HOUR_HEIGHT = 60;
+
+	// Function to scroll to current time
+	const scrollToCurrentTime = useCallback(() => {
+		if (!scrollViewRef.current) return;
+		
+		const currentHour = new Date().getHours();
+		const currentMinute = new Date().getMinutes();
+		
+		// Calculate position based on current time
+		const currentTimePosition = (currentHour + currentMinute / 60) * HOUR_HEIGHT + 11;
+		
+		// Get screen height to center the current time line
+		const screenHeight = Dimensions.get('window').height;
+		const headerHeight = 100; // Approximate height of the header
+		const scrollPosition = Math.max(0, currentTimePosition - (screenHeight - headerHeight) / 2);
+		
+		// Scroll to the calculated position
+		scrollViewRef.current.scrollTo({ y: scrollPosition, animated: true });
+	}, [HOUR_HEIGHT]);
 
 	// Helper function to format date as YYYY-MM-DD for cache keys
 	const formatDateKey = useCallback((date: Date) => {
@@ -131,7 +151,12 @@ export default function Home() {
 	useFocusEffect(
 		useCallback(() => {
 			loadInitialData();
-		}, []),
+			
+			// Scroll to current time after data is loaded
+			setTimeout(() => {
+				scrollToCurrentTime();
+			}, 300); // Small delay to ensure component is fully rendered
+		}, [scrollToCurrentTime]),
 	);
 
 	// Refresh data for the current date
@@ -231,7 +256,12 @@ export default function Home() {
 		if (!jobsCache[todayKey]) {
 			fetchJobsForDate(today);
 		}
-	}, [currentDate, jobsCache, formatDateKey, fetchJobsForDate]);
+		
+		// Scroll to current time after navigating to today
+		setTimeout(() => {
+			scrollToCurrentTime();
+		}, 300);
+	}, [currentDate, jobsCache, formatDateKey, fetchJobsForDate, scrollToCurrentTime]);
 
 	// Format the current date for display
 	const formattedDate = new Intl.DateTimeFormat("en-US", {
@@ -240,6 +270,8 @@ export default function Home() {
 		month: "long",
 		day: "numeric",
 	}).format(currentDate);
+
+
 
 	// Get jobs for the current date
 	const currentDateKey = formatDateKey(currentDate);
@@ -280,21 +312,27 @@ export default function Home() {
 					/>
 				</TouchableOpacity>
 			</View>
-			<View className="flex-1 bg-background">
-				{/* Schedule View */}
-				<ScrollView
-					className="flex-1 bg-background"
-					contentContainerStyle={{ minHeight: 24 * HOUR_HEIGHT }}
-					refreshControl={
-						<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+		<View className="flex-1 bg-background">
+			{/* Schedule View */}
+			<ScrollView
+				ref={scrollViewRef}
+				className="flex-1 bg-background"
+				contentContainerStyle={{ minHeight: 24 * HOUR_HEIGHT }}
+				refreshControl={
+					<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+				}
+				onContentSizeChange={() => {
+					// Scroll to current time when content size changes (e.g., after initial render)
+					if (currentDateKey === formatDateKey(new Date())) {
+						scrollToCurrentTime();
 					}
-				>
-					{/* Hour markers */}
-					<HourMarkers hourHeight={HOUR_HEIGHT} />
+				}}
+			>
+				{/* Hour markers */}
+				<HourMarkers hourHeight={HOUR_HEIGHT} />
 
-					{/* Current time indicator */}
-					<CurrentTimeIndicator hourHeight={HOUR_HEIGHT} visible={true} />
-
+				{/* Current time indicator */}
+				<CurrentTimeIndicator hourHeight={HOUR_HEIGHT} visible={true} />
 					{/* Job cards */}
 					{currentJobs.map((job) => {
 						// Parse job start and end times

@@ -11,6 +11,7 @@ interface CurrentShiftCardProps {
 	elapsedTime: string;
 	isDark: boolean;
 	formatStartTime: (start: string) => string;
+	onEdit?: (shift: any) => void; // Optional callback for edit action
 }
 
 export const CurrentShiftCard: React.FC<CurrentShiftCardProps> = ({
@@ -19,6 +20,7 @@ export const CurrentShiftCard: React.FC<CurrentShiftCardProps> = ({
 	elapsedTime,
 	isDark,
 	formatStartTime,
+	onEdit,
 }) => {
 	// Helper to return 'Today' or 'Yesterday' with time
 	const getRelativeStartedText = (start: string) => {
@@ -93,23 +95,22 @@ export const CurrentShiftCard: React.FC<CurrentShiftCardProps> = ({
 
 	return (
 		<View className={`${bgClass} p-2 rounded-lg ${borderClass} mb-2 shadow-sm`}>
-			<View style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
-				<Ionicons
-					name="create-outline"
-					size={22}
-					color={isDark ? "#fff" : "#222"}
-					onPress={() => {
-						// Go to timesheet for the day
-						const today = new Date();
-						const y = today.getFullYear();
-						const m = (today.getMonth() + 1).toString().padStart(2, "0");
-						const d = today.getDate().toString().padStart(2, "0");
-						const dateStr = `${y}-${m}-${d}`;
-						router.push(`/timesheet/day?date=${dateStr}`);
-					}}
-					style={{ padding: 4 }}
-				/>
-			</View>
+			{currentShift && onEdit && (
+				<View style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
+					<Ionicons
+						name="create-outline"
+						size={22}
+						color={isDark ? "#fff" : "#222"}
+						onPress={() => {
+							// Call the onEdit callback with the current shift
+							if (onEdit && currentShift) {
+								onEdit(currentShift);
+							}
+						}}
+						style={{ padding: 4 }}
+					/>
+				</View>
+			)}
 			<H3 className={`text-center font-semibold uppercase ${titleColor}`}>
 				{getCurrentShiftTitle()}
 			</H3>

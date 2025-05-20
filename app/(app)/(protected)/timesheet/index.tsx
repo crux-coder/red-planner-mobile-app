@@ -1,599 +1,621 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { useFocusEffect } from "@react-navigation/native";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-	View,
-	TouchableOpacity,
 	ActivityIndicator,
 	ScrollView,
-	Alert,
-	FlatList,
+	TouchableOpacity,
+	Modal,
+	Platform,
+	ActionSheetIOS,
+	View,
+	Text,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Text } from "@/components/ui/text";
-import { CurrentShiftCard } from "../../../components/timesheet/CurrentShiftCard";
-import { JobsList } from "../../../components/timesheet/JobsList";
-import { TimesheetActions } from "../../../components/timesheet/TimesheetActions";
-import { CoefficientInputDialog } from "../../../components/timesheet/CoefficientInputDialog";
 import { Ionicons } from "@expo/vector-icons";
-import { useColorScheme } from "@/lib/useColorScheme";
-import { useSupabase } from "@/context/supabase-provider";
-import { format } from "date-fns";
+import { useColorScheme } from "nativewind";
 import { supabase } from "@/config/supabase";
-import { toLocalTimestamp } from "@/lib/utils";
+import { useSupabase } from "@/context/supabase-provider";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import {
+	format,
+	parseISO,
+	startOfMonth,
+	endOfMonth,
+	startOfWeek,
+	endOfWeek,
+	addWeeks,
+	subWeeks,
+	eachDayOfInterval,
+	isSameDay,
+	isSameMonth,
+	getYear,
+	setMonth,
+	setYear,
+} from "date-fns";
 import { useRouter } from "expo-router";
+import { TimeBlockEditDialog } from "../../../components/timesheet/TimeBlockEditDialog";
+import { toLocalTimestamp } from "@/lib/utils";
 
-// Define the Shift interface
-interface Shift {
+// Define the TimeBlock interface
+export interface TimeBlock {
 	id: string;
 	worker_id: string;
-	job_id: string;
+	job_id?: string;
 	start_time: string;
 	end_time: string | null;
 	category: "shift" | "overtime" | "break";
 	type: "regular" | "job";
+	status: "pending" | "approved" | "rejected";
 	coefficient: number;
 	notes: string | null;
 	created_at: string;
-}
-
-// Define the Job interface
-interface Project {
-	id: string;
-	name: string;
-	description?: string;
-}
-
-interface UserProfile {
-	id: string;
-	first_name: string;
-	last_name: string;
-	photo?: string;
-}
-
-interface Job {
-	id: string;
-	title: string;
-	description?: string;
-	start_date: string;
-	end_date: string;
-	type: string;
-	status: string;
-	job_number?: string;
-	project?: Project;
-	notes?: string;
-	people_assignments: {
+	job?: {
 		id: string;
-		user: UserProfile;
-	}[];
+		job_number: string;
+	};
+	rejection_reason: string | null;
+	reviewed_by_id: string | null;
+	reviewed_at: string | null;
 }
 
-// Define action types
-type ActionType =
-	| "break"
-	| "endbreak"
-	| "overtime"
-	| "job"
-	| "clockout"
-	| "completejob";
+// Group timeblocks by date
+interface GroupedTimeBlocks {
+	[date: string]: TimeBlock[];
+}
 
-export default function Timesheet() {
-	const [currentShift, setCurrentShift] = useState<Shift | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [clockingIn, setClockingIn] = useState(false);
-	const [clockingOut, setClockingOut] = useState(false);
-	const [processingAction, setProcessingAction] = useState(false);
-	const [elapsedTime, setElapsedTime] = useState<string>("00:00:00");
-	const [userJobs, setUserJobs] = useState<Job[]>([]);
-	const [loadingJobs, setLoadingJobs] = useState(false);
-	const [showCoefficientDialog, setShowCoefficientDialog] = useState(false);
-	const [pendingAction, setPendingAction] = useState<ActionType | null>(null);
-	const [dialogTitle, setDialogTitle] = useState("");
-	const [initialCoefficient, setInitialCoefficient] = useState(1.0);
-	const [dialogActionType, setDialogActionType] = useState<
-		"shift" | "overtime"
-	>("shift");
+export default function MonthlyTimesheet() {
+	const router = useRouter();
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
 	const { userProfile } = useSupabase();
-	const router = useRouter();
 
-	// Function to fetch the current active shift
-	const fetchCurrentShift = useCallback(async () => {
+	const [loading, setLoading] = useState(true);
+	const [currentMonth, setCurrentMonth] = useState(new Date());
+	const [currentWeek, setCurrentWeek] = useState(
+		startOfWeek(new Date(), { weekStartsOn: 1 }),
+	);
+	const [selectedDate, setSelectedDate] = useState(new Date());
+	const [groupedTimeBlocks, setGroupedTimeBlocks] = useState<GroupedTimeBlocks>(
+		{},
+	);
+	const [editDialogVisible, setEditDialogVisible] = useState(false);
+	const [editingTimeBlock, setEditingTimeBlock] = useState<TimeBlock | null>(
+		null,
+	);
+
+	// Fetch timeblocks for the current month
+	const fetchTimeBlocksForMonth = useCallback(async () => {
 		if (!userProfile) return;
 
 		try {
 			setLoading(true);
 
-			// Query for the most recent shift that doesn't have an end time
+			const firstDay = startOfMonth(currentMonth);
+			const lastDay = endOfMonth(currentMonth);
+
 			const { data, error } = await supabase
 				.from("time_blocks")
 				.select("*, job:job_id(*)")
 				.eq("worker_id", userProfile.id)
-				.is("end_time", null)
-				.order("start_time", { ascending: false })
-				.limit(1)
-				.single();
+				.gte("start_time", toLocalTimestamp(firstDay))
+				.lte("start_time", toLocalTimestamp(lastDay))
+				.order("start_time", { ascending: true });
 
-			if (error && error.code !== "PGRST116") {
-				// PGRST116 is the error code for no rows returned
-				console.error("Error fetching current shift:", error);
+			if (error) {
+				console.error("Error fetching timeblocks:", error);
 				return;
 			}
 
-			setCurrentShift(data || null);
+			// Group timeblocks by date
+			const grouped: GroupedTimeBlocks = {};
+			let totalHoursWorked = 0;
+			let totalEarned = 0;
+
+			(data || []).forEach((block: TimeBlock) => {
+				const date = format(parseISO(block.start_time), "yyyy-MM-dd");
+
+				if (!grouped[date]) {
+					grouped[date] = [];
+				}
+
+				grouped[date].push(block);
+
+				// Calculate hours and earnings
+				if (block.end_time && block.category !== "break") {
+					const startTime = new Date(block.start_time);
+					const endTime = new Date(block.end_time);
+					const hoursWorked =
+						(endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+
+					totalHoursWorked += hoursWorked;
+					totalEarned += hoursWorked * block.coefficient;
+				}
+			});
+
+			setGroupedTimeBlocks(grouped);
+
+			// Only set default selected date on initial load, not on month changes
+			if (Object.keys(groupedTimeBlocks).length === 0) {
+				// This is the initial load, so we can set default selections
+				const today = new Date();
+				
+				if (isSameMonth(today, currentMonth)) {
+					// Select today if we're viewing the current month
+					setSelectedDate(today);
+					setCurrentWeek(startOfWeek(today, { weekStartsOn: 1 }));
+				} else if (Object.keys(grouped).length > 0) {
+					// If we're viewing a different month, select the first day with timeblocks
+					const firstDate = parseISO(Object.keys(grouped)[0]);
+					setSelectedDate(firstDate);
+					setCurrentWeek(startOfWeek(firstDate, { weekStartsOn: 1 }));
+				}
+			}
 		} catch (error) {
 			console.error("Error:", error);
 		} finally {
 			setLoading(false);
 		}
-	}, [userProfile]);
+	}, [userProfile, currentMonth]);
 
-	// Function to fetch jobs assigned to the current user
-	const fetchUserJobs = useCallback(async () => {
-		if (!userProfile) return;
-
-		try {
-			setLoadingJobs(true);
-
-			// Get current date in YYYY-MM-DD format
-			const now = new Date();
-			now.setHours(0, 0, 0, 0);
-			const todayStart = toLocalTimestamp(now);
-			now.setHours(23, 59, 59, 999);
-			const todayEnd = toLocalTimestamp(now);
-
-			// Fetch jobs where this user is assigned
-			const { data, error } = await supabase
-				.from("jobs")
-				.select(
-					`
-					*,
-					project:projects(*),
-					people_assignments:job_people_assignments!inner(
-						*,
-						user:users(*)
-					)
-				`,
-				)
-				.eq("job_people_assignments.user", userProfile.id)
-				.gte("start_date", todayStart)
-				.lte("end_date", todayEnd)
-				.order("start_date", { ascending: true });
-
-			if (error) {
-				console.error("Error fetching jobs:", error);
-				return;
-			}
-
-			setUserJobs(data || []);
-		} catch (error) {
-			console.error("Error fetching jobs:", error);
-		} finally {
-			setLoadingJobs(false);
-		}
-	}, [userProfile]);
-
-	// Update elapsed time every second if there's an active shift
+	// Initial fetch
 	useEffect(() => {
-		if (!currentShift) {
-			setElapsedTime("00:00:00");
-			return;
-		}
+		fetchTimeBlocksForMonth();
+	}, [fetchTimeBlocksForMonth]);
 
-		const updateElapsedTime = () => {
-			const startTime = new Date(currentShift.start_time);
-			const now = new Date();
-			const diffInSeconds = Math.floor(
-				(now.getTime() - startTime.getTime()) / 1000,
-			);
-
-			const hours = Math.floor(diffInSeconds / 3600);
-			const minutes = Math.floor((diffInSeconds % 3600) / 60);
-			const seconds = diffInSeconds % 60;
-
-			setElapsedTime(
-				`${hours.toString().padStart(2, "0")}:${minutes
-					.toString()
-					.padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`,
-			);
-		};
-
-		// Update immediately
-		updateElapsedTime();
-
-		// Then update every second
-		const intervalId = setInterval(updateElapsedTime, 1000);
-
-		return () => clearInterval(intervalId);
-	}, [currentShift]);
-
-	// Load current shift and jobs when component mounts
+	// Sync week view with selected date, but only when explicitly changing the date
+	// This prevents the circular dependency that was causing the date to revert
 	useEffect(() => {
-		fetchCurrentShift();
-		fetchUserJobs();
-	}, [fetchCurrentShift, fetchUserJobs]);
+		// We only want to update the current week when the selected date changes
+		// due to user interaction, not due to other effects
+		const newWeekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+		
+		// Only update if the week has actually changed
+		if (!isSameDay(newWeekStart, currentWeek)) {
+			setCurrentWeek(newWeekStart);
+		}
+	}, [selectedDate]);
 
-	// Function to show coefficient dialog before clocking in
-	const handleClockIn = () => {
-		if (!userProfile) return;
+	// Month selection
+	const [showMonthPicker, setShowMonthPicker] = useState(false);
 
-		// Show coefficient dialog for new shift
-		setDialogTitle("Start New Shift");
-		setInitialCoefficient(1.0);
-		setDialogActionType("shift");
-		setPendingAction(null); // Not an action type but we use null to indicate it's a new shift
-		setShowCoefficientDialog(true);
+	// Handle month selection
+	const handleMonthChange = (month: number) => {
+		const newDate = setMonth(currentMonth, month);
+		setCurrentMonth(newDate);
+		// Update the week view to include the selected month
+		setCurrentWeek(startOfWeek(newDate, { weekStartsOn: 1 }));
 	};
 
-	// Function to actually clock in with the selected coefficient
-	const performClockIn = async (coefficient: number) => {
-		if (!userProfile) return;
+	// Handle year selection
+	const handleYearChange = (year: number) => {
+		const newDate = setYear(currentMonth, year);
+		setCurrentMonth(newDate);
+		// Update the week view to include the selected year
+		setCurrentWeek(startOfWeek(newDate, { weekStartsOn: 1 }));
+	};
 
-		try {
-			setClockingIn(true);
-
-			// Create a new shift record
-			const { data, error } = await supabase
-				.from("time_blocks")
-				.insert({
-					worker_id: userProfile.id,
-					category: "shift",
-					type: "regular",
-					coefficient: coefficient,
-					start_time: toLocalTimestamp(new Date()),
-					end_time: null,
-					notes: "",
-				})
-				.select()
-				.single();
-
-			if (error) {
-				console.error("Error clocking in:", error);
-				return;
-			}
-
-			setCurrentShift(data);
-		} catch (error) {
-			console.error("Error:", error);
-		} finally {
-			setClockingIn(false);
+	// Show month/year picker options
+	const showMonthYearPicker = () => {
+		if (Platform.OS === "ios") {
+			// For iOS, use ActionSheet to choose between month or year selection
+			ActionSheetIOS.showActionSheetWithOptions(
+				{
+					options: ["Select Month", "Select Year", "Cancel"],
+					cancelButtonIndex: 2,
+					title: "Choose Option",
+				},
+				(buttonIndex: number) => {
+					if (buttonIndex === 0) {
+						showMonthSelector();
+					} else if (buttonIndex === 1) {
+						showYearSelector();
+					}
+				},
+			);
+		} else {
+			// For Android, toggle the picker visibility
+			setShowMonthPicker(true);
 		}
 	};
 
-	// Function to show confirmation alert before taking an action
-	const confirmAction = (actionType: ActionType, callback: () => void) => {
-		let title = "";
-		let message = "";
-
-		switch (actionType) {
-			case "break":
-				title = "Start Break";
-				message =
-					"Are you sure you want to start a break? This will end your current shift.";
-				break;
-			case "endbreak":
-				title = "End Break";
-				message =
-					"Are you sure you want to end your break? This will start a new shift.";
-				break;
-			case "overtime":
-				title = "Start Overtime";
-				message =
-					"Are you sure you want to start overtime? This will end your current shift.";
-				break;
-			case "job":
-				title = "Start Job Shift";
-				message =
-					"Are you sure you want to start a job shift? This will end your current shift.";
-				break;
-			case "clockout":
-				title = "Clock Out";
-				message =
-					"Are you sure you want to clock out? This will end your current shift.";
-				break;
-			case "completejob":
-				title = "Complete Job";
-				message =
-					"Are you sure you want to complete this job? This will end your current job shift and start a new regular shift.";
-				break;
-		}
-
-		Alert.alert(
-			title,
-			message,
-			[
-				{
-					text: "Cancel",
-					style: "cancel",
-					onPress: () => setProcessingAction(false),
-				},
-				{
-					text: "Yes",
-					onPress: callback,
-				},
-			],
-			{ cancelable: false },
+	// Show month selector
+	const showMonthSelector = () => {
+		const months = [
+			"January",
+			"February",
+			"March",
+			"April",
+			"May",
+			"June",
+			"July",
+			"August",
+			"September",
+			"October",
+			"November",
+			"December",
+		];
+		ActionSheetIOS.showActionSheetWithOptions(
+			{
+				options: [...months, "Cancel"],
+				cancelButtonIndex: 12,
+				title: "Select Month",
+			},
+			(buttonIndex: number) => {
+				if (buttonIndex !== 12) {
+					handleMonthChange(buttonIndex);
+				}
+			},
 		);
 	};
 
-	// Function to show coefficient dialog before performing an action
-	const handleAction = (actionType: ActionType) => {
-		if (!currentShift || !userProfile) return;
+	// Show year selector
+	const showYearSelector = () => {
+		const currentYear = getYear(new Date());
+		const years = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i);
+		ActionSheetIOS.showActionSheetWithOptions(
+			{
+				options: [...years.map((y) => y.toString()), "Cancel"],
+				cancelButtonIndex: 10,
+				title: "Select Year",
+			},
+			(buttonIndex: number) => {
+				if (buttonIndex !== 10) {
+					handleYearChange(years[buttonIndex]);
+				}
+			},
+		);
+	};
 
-		// For overtime, show coefficient dialog
-		if (actionType === "overtime") {
-			setDialogTitle("Start Overtime");
-			setInitialCoefficient(1.5);
-			setDialogActionType("overtime");
-			setPendingAction(actionType);
-			setShowCoefficientDialog(true);
-		} else {
-			// For other actions, proceed with confirmation
-			setProcessingAction(true);
-			confirmAction(actionType, () => performAction(actionType, null));
+	// Navigate to previous week
+	const goToPreviousWeek = () => {
+		setCurrentWeek((prev) => subWeeks(prev, 1));
+	};
+
+	// Navigate to next week
+	const goToNextWeek = () => {
+		setCurrentWeek((prev) => addWeeks(prev, 1));
+	};
+
+	// Get days of current week
+	const getDaysOfWeek = () => {
+		const start = currentWeek;
+		const end = endOfWeek(currentWeek, { weekStartsOn: 1 });
+		return eachDayOfInterval({ start, end });
+	};
+
+	// Select a date to view timeblocks
+	const handleSelectDate = (date: Date) => {
+		setSelectedDate(date);
+		// If the selected date is not in the current month, update the current month
+		if (!isSameMonth(date, currentMonth)) {
+			setCurrentMonth(date);
 		}
 	};
 
-	// Function to actually perform the action with the selected coefficient
-	const performAction = async (
-		actionType: ActionType,
-		customCoefficient: number | null,
-	) => {
-		if (!currentShift || !userProfile) return;
+	// Format time duration
+	const formatDuration = (startTime: string, endTime: string | null) => {
+		if (!endTime) return "Ongoing";
 
-		setProcessingAction(true);
+		const start = new Date(startTime);
+		const end = new Date(endTime);
+		const durationMs = end.getTime() - start.getTime();
+		const hours = Math.floor(durationMs / (1000 * 60 * 60));
+		const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+
+		return `${hours}h ${minutes}m`;
+	};
+
+	// Format time for display
+	const formatTime = (timeString: string) => {
+		return format(new Date(timeString), "h:mm a");
+	};
+
+	// Handle editing a timeblock
+	const handleEditTimeBlock = (timeBlock: TimeBlock) => {
+		setEditingTimeBlock(timeBlock);
+		setEditDialogVisible(true);
+	};
+
+	// Save edited timeblock
+	const handleSaveTimeBlock = async (
+		start: Date,
+		end: Date | null,
+		coefficient: number,
+		category: string,
+	) => {
+		if (!editingTimeBlock) return;
 
 		try {
-			const now = toLocalTimestamp(new Date());
-
-			// First, end the current shift
-			const endCurrentShift = await supabase
+			await supabase
 				.from("time_blocks")
 				.update({
-					end_time: now,
+					start_time: toLocalTimestamp(start),
+					end_time: end ? toLocalTimestamp(end) : null,
+					coefficient,
+					category: category as "shift" | "overtime" | "break",
 				})
-				.eq("id", currentShift.id);
+				.eq("id", editingTimeBlock.id);
 
-			if (endCurrentShift.error) {
-				console.error("Error ending current shift:", endCurrentShift.error);
-				return;
-			}
-
-			// Then start a new shift based on the action type
-			switch (actionType) {
-				case "break":
-					// Start a break
-					const breakResult = await supabase
-						.from("time_blocks")
-						.insert({
-							worker_id: userProfile.id,
-							category: "break", // Maintain the same type
-							coefficient: 0, // Set break coefficient
-							status: "approved",
-							start_time: now,
-							end_time: null,
-						})
-						.select()
-						.single();
-
-					if (breakResult.error) {
-						console.error("Error starting break:", breakResult.error);
-						return;
-					}
-
-					setCurrentShift(breakResult.data);
-					break;
-
-				case "endbreak":
-					// End the current break and start a new shift
-					const now2 = toLocalTimestamp(new Date());
-					const endBreak = await supabase
-						.from("time_blocks")
-						.update({ end_time: now2 })
-						.eq("id", currentShift.id);
-					if (endBreak.error) {
-						console.error("Error ending break:", endBreak.error);
-						return;
-					}
-					// Start a new shift
-					const newShift = await supabase
-						.from("time_blocks")
-						.insert({
-							worker_id: userProfile.id,
-							category: "shift",
-							type: "regular",
-							coefficient: 1,
-							start_time: now2,
-							end_time: null,
-						})
-						.select()
-						.single();
-					if (newShift.error) {
-						console.error(
-							"Error starting new shift after break:",
-							newShift.error,
-						);
-						return;
-					}
-					setCurrentShift(newShift.data);
-					break;
-
-				case "overtime":
-					// Start a new shift with overtime coefficient
-					const overtimeResult = await supabase
-						.from("time_blocks")
-						.insert({
-							worker_id: userProfile.id,
-							category: "overtime", // Maintain the same type
-							type: currentShift.type,
-							job_id: currentShift.job_id,
-							coefficient: customCoefficient || 1.5, // Use custom coefficient if provided
-							start_time: now,
-							end_time: null,
-							notes: "",
-						})
-						.select()
-						.single();
-
-					if (overtimeResult.error) {
-						console.error(
-							"Error starting overtime shift:",
-							overtimeResult.error,
-						);
-						return;
-					}
-
-					setCurrentShift(overtimeResult.data);
-					break;
-
-				case "clockout":
-					// Just end the current shift without starting a new one
-					setCurrentShift(null);
-					break;
-
-				case "completejob": {
-					// Complete job: end current shift, start new regular shift, update job status
-					const endCurrentShift = await supabase
-						.from("time_blocks")
-						.update({ end_time: now })
-						.eq("id", currentShift.id);
-
-					if (endCurrentShift.error) {
-						console.error("Error ending current shift:", endCurrentShift.error);
-						return;
-					}
-
-					// Update job status to completed if job_id is present
-					if (currentShift.job_id) {
-						await supabase
-							.from("jobs")
-							.update({ status: "completed" })
-							.eq("id", currentShift.job_id);
-					}
-
-					// Start new regular shift
-					const { data: newShift, error: startError } = await supabase
-						.from("time_blocks")
-						.insert({
-							worker_id: userProfile.id,
-							category: "shift",
-							type: "regular",
-							coefficient: 1, // Default coefficient for new shift after job completion
-							start_time: now,
-							end_time: null,
-							notes: "",
-						})
-						.select()
-						.single();
-
-					if (startError) {
-						console.error("Error starting new shift:", startError);
-						return;
-					}
-
-					setCurrentShift(newShift);
-					break;
-				}
-			}
+			setEditDialogVisible(false);
+			setEditingTimeBlock(null);
+			await fetchTimeBlocksForMonth();
 		} catch (error) {
-			console.error("Error processing action:", error);
-			// If there was an error, refresh the current shift to ensure UI is in sync
-			await fetchCurrentShift();
-		} finally {
-			setProcessingAction(false);
-			setClockingOut(false);
+			console.error("Error updating timeblock:", error);
 		}
 	};
 
-	// Pull fresh data every time the screen is focused
-	useFocusEffect(
-		useCallback(() => {
-			fetchCurrentShift();
-			fetchUserJobs();
-		}, [fetchCurrentShift, fetchUserJobs]),
-	);
+	// Get category color
+	const getCategoryColor = (timeblock: TimeBlock) => {
+		if (timeblock.category === "shift" && timeblock.type === "job") {
+			return isDark ? "#22c55e" : "#16a34a";
+		}
+		switch (timeblock.category) {
+			case "shift":
+				return isDark ? "#3b82f6" : "#2563eb";
+			case "overtime":
+				return isDark ? "#f59e0b" : "#d97706";
+			case "break":
+				return isDark ? "#6b7280" : "#4b5563";
+			default:
+				return isDark ? "#6b7280" : "#4b5563";
+		}
+	};
 
-	// Format the start time for display
-	const formatStartTime = (startTime: string) => {
-		const date = new Date(startTime);
-		return format(date, "EEEE, MMMM d, yyyy 'at' h:mm a");
+	// Get category label
+	const getCategoryLabel = (category: string) => {
+		switch (category) {
+			case "shift":
+				return "Shift";
+			case "overtime":
+				return "Overtime";
+			case "break":
+				return "Break";
+			default:
+				return "Unknown";
+		}
+	};
+
+	// Get status label
+	const getStatusLabel = (status: string) => {
+		switch (status) {
+			case "pending":
+				return "Pending";
+			case "approved":
+				return "Approved";
+			case "rejected":
+				return "Rejected";
+			default:
+				return "Pending";
+		}
+	};
+
+	// Get status color
+	const getStatusColor = (status: string) => {
+		switch (status) {
+			case "pending":
+				return isDark ? "#f59e0b" : "#d97706"; // Amber
+			case "approved":
+				return isDark ? "#22c55e" : "#16a34a"; // Green
+			case "rejected":
+				return isDark ? "#ef4444" : "#dc2626"; // Red
+			default:
+				return isDark ? "#f59e0b" : "#d97706"; // Default to Amber
+		}
 	};
 
 	return (
 		<SafeAreaView className="flex-1 bg-background" edges={["top"]}>
-			<View className="flex-1 flex-col justify-between">
-				<View className="px-4 pt-4 pb-2 border-b border-border">
-					<View className="flex-row justify-between items-center">
-						<Text className="text-lg font-bold text-center">
-							{format(new Date(), "EEEE, MMMM d, yyyy")}
-						</Text>
+			{/* Header with back button */}
+			<View className="flex-row justify-between items-center border-b border-border bg-card z-20">
+				<View className="flex-1 items-center">
+					{/* Month and year selection in header */}
+					<View className="flex-row justify-center items-center py-2 bg-card">
 						<TouchableOpacity
-							onPress={() => router.push("/timesheet/month")}
-							className="p-2"
+							onPress={showMonthYearPicker}
+							className="flex-row items-center justify-center px-4 py-2"
 						>
+							<Text className="text-base text-white font-medium mr-2">
+								{format(currentMonth, "MMMM yyyy")}
+							</Text>
 							<Ionicons
-								name="calendar"
-								size={24}
-								color={isDark ? "#fff" : "#000"}
+								name="caret-down"
+								size={16}
+								color={isDark ? "#fff" : "#222"}
 							/>
 						</TouchableOpacity>
 					</View>
-				</View>
-				{/* Current Shift Card */}
-				<View className="p-2 pb-0">
-					<CurrentShiftCard
-						loading={loading}
-						currentShift={currentShift}
-						elapsedTime={elapsedTime}
-						isDark={isDark}
-						formatStartTime={formatStartTime}
-					/>
-				</View>
-				<View className="flex-1 mb-4 p-2">
-					<JobsList
-						loadingJobs={loadingJobs}
-						userJobs={userJobs}
-						isDark={isDark}
-						refreshing={loadingJobs}
-						onRefresh={fetchUserJobs}
-						currentShiftJobId={currentShift?.job_id ?? null}
-					/>
-				</View>
 
-				<View className="p-2 border-t border-border">
-					<TimesheetActions
-						loading={loading}
-						currentShift={currentShift}
-						clockingIn={clockingIn}
-						clockingOut={clockingOut}
-						processingAction={processingAction}
-						handleClockIn={handleClockIn}
-						handleAction={handleAction}
-						isDark={isDark}
-					/>
+					{/* Month Picker for Android */}
+					{showMonthPicker && (
+						<DateTimePicker
+							value={currentMonth}
+							mode="date"
+							display="calendar"
+							onChange={(event: any, selectedDate?: Date) => {
+								setShowMonthPicker(false);
+								if (selectedDate) {
+									setCurrentMonth(selectedDate);
+									setSelectedDate(selectedDate);
+									setCurrentWeek(
+										startOfWeek(selectedDate, { weekStartsOn: 1 }),
+									);
+								}
+							}}
+						/>
+					)}
 				</View>
 			</View>
 
-			{/* Coefficient Input Dialog */}
-			<CoefficientInputDialog
-				visible={showCoefficientDialog}
-				onClose={() => setShowCoefficientDialog(false)}
-				onSave={(coefficient) => {
-					setShowCoefficientDialog(false);
-					if (pendingAction === null) {
-						// This is a new shift (clock in)
-						performClockIn(coefficient);
-					} else {
-						// This is an action (overtime)
-						confirmAction(pendingAction, () =>
-							performAction(pendingAction, coefficient),
-						);
-					}
-				}}
-				title={dialogTitle}
-				initialCoefficient={initialCoefficient}
-				actionType={dialogActionType}
-			/>
+			{/* Days of week */}
+			<View className="flex-row justify-between items-center px-2 py-3 bg-card border-b border-border">
+				<TouchableOpacity onPress={goToPreviousWeek} style={{ padding: 8 }}>
+					<Ionicons
+						name="chevron-back"
+						size={24}
+						color={isDark ? "#fff" : "#222"}
+					/>
+				</TouchableOpacity>
+				{getDaysOfWeek().map((day) => {
+					const isSelected = isSameDay(day, selectedDate);
+					const isCurrentMonth = isSameMonth(day, currentMonth);
+					return (
+						<TouchableOpacity
+							key={day.toISOString()}
+							onPress={() => handleSelectDate(day)}
+							className={`items-center p-2 rounded-lg ${isSelected ? "border border-primary" : ""} ${!isCurrentMonth ? "opacity-50" : ""}`}
+						>
+							<Text
+								className={`text-xs ${isSelected ? "text-white" : "text-gray-400"}`}
+							>
+								{format(day, "EEE")}
+							</Text>
+							<Text
+								className={`text-base font-medium ${isSelected ? "text-white" : "text-gray-400"}`}
+							>
+								{format(day, "d")}
+							</Text>
+						</TouchableOpacity>
+					);
+				})}
+				<TouchableOpacity onPress={goToNextWeek} style={{ padding: 8 }}>
+					<Ionicons
+						name="chevron-forward"
+						size={24}
+						color={isDark ? "#fff" : "#222"}
+					/>
+				</TouchableOpacity>
+			</View>
+
+			{/* Selected date header */}
+			<View className="bg-card px-4 py-3 border-b border-border">
+				<View className="flex-row justify-between items-center">
+					<Text className="text-base font-semibold dark:text-white">
+						{format(selectedDate, "EEEE, MMMM d, yyyy")}
+					</Text>
+				</View>
+			</View>
+
+			{/* Timeblocks list */}
+			{loading ? (
+				<View className="flex-1 justify-center items-center">
+					<ActivityIndicator
+						size="large"
+						color={isDark ? "#3b82f6" : "#2563eb"}
+					/>
+				</View>
+			) : (
+				<ScrollView className="flex-1">
+					{Object.keys(groupedTimeBlocks).length === 0 ? (
+						<View className="p-8 items-center justify-center">
+							<Text className="text-center dark:text-white">
+								No timesheet entries found for this month.
+							</Text>
+						</View>
+					) : (
+						<View>
+							{/* Show timeblocks for selected date */}
+							{(() => {
+								const dateKey = format(selectedDate, "yyyy-MM-dd");
+								const blocks = groupedTimeBlocks[dateKey] || [];
+
+								if (blocks.length === 0) {
+									return (
+										<View className="p-8 items-center justify-center">
+											<Text className="text-center dark:text-white">
+												No timesheet entries found for this date.
+											</Text>
+										</View>
+									);
+								}
+
+								return blocks.map((block) => (
+									<TouchableOpacity
+										key={block.id}
+										onPress={() => handleEditTimeBlock(block)}
+										className="flex-row items-center p-4 border-b border-border"
+									>
+										<View
+											style={{
+												width: 12,
+												height: "100%",
+												borderRadius: 4,
+												backgroundColor: getCategoryColor(block),
+												marginRight: 12,
+											}}
+										/>
+										<View style={{ flex: 1 }}>
+											<View className="flex-row justify-between items-center">
+												<View className="flex-row w-full items-center justify-between">
+													<Text className="font-medium dark:text-white">
+														{getCategoryLabel(block.category)}
+														{block.job ? ` - ${block.job.job_number}` : ""}
+													</Text>
+													<View
+														style={{
+															backgroundColor: getStatusColor(
+																block.status || "pending",
+															),
+															paddingHorizontal: 8,
+															paddingVertical: 2,
+															borderRadius: 12,
+															marginLeft: 8,
+														}}
+													>
+														<Text
+															style={{
+																color: "white",
+																fontSize: 10,
+																fontWeight: "500",
+															}}
+														>
+															{getStatusLabel(block.status || "pending")}
+														</Text>
+													</View>
+												</View>
+											</View>
+											<View className="flex-row justify-between mt-1 items-center">
+												<Text className="text-sm dark:text-white">
+													{formatTime(block.start_time)} -{" "}
+													{block.end_time
+														? formatTime(block.end_time)
+														: "Ongoing"}
+												</Text>
+												<View className="flex-row items-center">
+													<Text className="text-sm dark:text-white mr-3">
+														{formatDuration(block.start_time, block.end_time)}
+													</Text>
+													<Text className="text-sm dark:text-white">
+														x{block.coefficient}
+													</Text>
+												</View>
+											</View>
+										</View>
+									</TouchableOpacity>
+								));
+							})()}
+						</View>
+					)}
+				</ScrollView>
+			)}
+
+			{/* Edit dialog */}
+			{editingTimeBlock && (
+				<TimeBlockEditDialog
+					visible={editDialogVisible}
+					onClose={() => {
+						setEditDialogVisible(false);
+						setEditingTimeBlock(null);
+					}}
+					onSave={handleSaveTimeBlock}
+					initialStart={editingTimeBlock.start_time}
+					initialEnd={editingTimeBlock.end_time}
+					category={editingTimeBlock.category}
+					initialCoefficient={editingTimeBlock.coefficient}
+					initialNotes={editingTimeBlock.notes || ""}
+					rejectionReason={editingTimeBlock.rejection_reason || null}
+					reviewedById={editingTimeBlock.reviewed_by_id || null}
+					reviewedAt={editingTimeBlock.reviewed_at || null}
+				/>
+			)}
 		</SafeAreaView>
 	);
 }

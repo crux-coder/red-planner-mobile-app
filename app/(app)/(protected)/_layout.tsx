@@ -36,7 +36,7 @@ export default function ProtectedLayout() {
 				options={{
 					title: "Timesheet",
 					tabBarIcon: ({ color, size }) => (
-						<Ionicons name="time-outline" size={size} color={color} />
+						<Ionicons name="calendar-outline" size={size} color={color} />
 					),
 					tabBarLabel: "Timesheet",
 				}}
@@ -49,6 +49,16 @@ export default function ProtectedLayout() {
 						<Ionicons name="calendar" size={size} color={color} />
 					),
 					tabBarLabel: "Schedule",
+				}}
+			/>
+			<Tabs.Screen
+				name="tracker"
+				options={{
+					title: "Time Tracker",
+					tabBarIcon: ({ color, size }) => (
+						<Ionicons name="stopwatch-outline" size={size} color={color} />
+					),
+					tabBarLabel: "Tracker",
 				}}
 			/>
 			<Tabs.Screen
