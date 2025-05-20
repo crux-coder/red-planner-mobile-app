@@ -33,13 +33,10 @@ import {
 } from "date-fns";
 import { useRouter } from "expo-router";
 import { TimeBlockEditDialog } from "../../../components/timesheet/TimeBlockEditDialog";
-// Helper function to convert date to local timestamp
-const toLocalTimestamp = (date: Date) => {
-	return date.toISOString();
-};
+import { toLocalTimestamp } from "@/lib/utils";
 
 // Define the TimeBlock interface
-interface TimeBlock {
+export interface TimeBlock {
 	id: string;
 	worker_id: string;
 	job_id?: string;
@@ -55,6 +52,9 @@ interface TimeBlock {
 		id: string;
 		job_number: string;
 	};
+	rejection_reason: string | null;
+	reviewed_by_id: string | null;
+	reviewed_at: string | null;
 }
 
 // Group timeblocks by date
@@ -74,7 +74,6 @@ export default function MonthlyTimesheet() {
 		startOfWeek(new Date(), { weekStartsOn: 1 }),
 	);
 	const [selectedDate, setSelectedDate] = useState(new Date());
-	const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([]);
 	const [groupedTimeBlocks, setGroupedTimeBlocks] = useState<GroupedTimeBlocks>(
 		{},
 	);
@@ -82,11 +81,6 @@ export default function MonthlyTimesheet() {
 	const [editingTimeBlock, setEditingTimeBlock] = useState<TimeBlock | null>(
 		null,
 	);
-	const [totalHours, setTotalHours] = useState(0);
-	const [totalEarnings, setTotalEarnings] = useState(0);
-
-	// Format the current month for display
-	const formattedMonth = format(currentMonth, "MMMM yyyy");
 
 	// Fetch timeblocks for the current month
 	const fetchTimeBlocksForMonth = useCallback(async () => {
@@ -110,8 +104,6 @@ export default function MonthlyTimesheet() {
 				console.error("Error fetching timeblocks:", error);
 				return;
 			}
-
-			setTimeBlocks(data || []);
 
 			// Group timeblocks by date
 			const grouped: GroupedTimeBlocks = {};
@@ -140,18 +132,15 @@ export default function MonthlyTimesheet() {
 			});
 
 			setGroupedTimeBlocks(grouped);
-			setTotalHours(totalHoursWorked);
-			setTotalEarnings(totalEarned);
 
-			// Set the selected date to current date if it's in the current month
-			// Otherwise set it to the first day with timeblocks
+			// Always prioritize the current date if it's in the current month
+			// If not, then check for days with timeblocks
 			const today = new Date();
-			if (
-				isSameMonth(today, currentMonth) &&
-				grouped[format(today, "yyyy-MM-dd")]
-			) {
+			if (isSameMonth(today, currentMonth)) {
+				// Always select today if we're viewing the current month
 				setSelectedDate(today);
 			} else if (Object.keys(grouped).length > 0) {
+				// If we're viewing a different month, select the first day with timeblocks
 				setSelectedDate(parseISO(Object.keys(grouped)[0]));
 			}
 		} catch (error) {
@@ -609,6 +598,10 @@ export default function MonthlyTimesheet() {
 					initialEnd={editingTimeBlock.end_time}
 					category={editingTimeBlock.category}
 					initialCoefficient={editingTimeBlock.coefficient}
+					initialNotes={editingTimeBlock.notes || ""}
+					rejectionReason={editingTimeBlock.rejection_reason || null}
+					reviewedById={editingTimeBlock.reviewed_by_id || null}
+					reviewedAt={editingTimeBlock.reviewed_at || null}
 				/>
 			)}
 		</SafeAreaView>

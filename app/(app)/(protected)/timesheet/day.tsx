@@ -31,6 +31,9 @@ interface Shift {
 		job_number?: string;
 		title?: string;
 	};
+	rejection_reason?: string | null;
+	reviewed_by_id?: string | null;
+	reviewed_at?: string | null;
 }
 
 const HOUR_HEIGHT = 60;
@@ -58,7 +61,9 @@ export default function TimesheetDay() {
 			// Fetch all time_blocks for the user for the selected day
 			const { data, error } = await supabase
 				.from("time_blocks")
-				.select("*, job:job_id(*)")
+				.select(
+					"*, job:job_id(*), rejection_reason, reviewed_by_id, reviewed_at",
+				)
 				.eq("worker_id", userProfile.id)
 				.gte("start_time", `${date} 00:00:00`)
 				.lt("start_time", `${date} 23:59:59.999`)
@@ -155,6 +160,8 @@ export default function TimesheetDay() {
 		start: Date,
 		end: Date | null,
 		coefficient: number,
+		category: string,
+		notes?: string,
 	) => {
 		if (!editingShift) return;
 		const startDate = new Date(editingShift.start_time);
@@ -174,6 +181,8 @@ export default function TimesheetDay() {
 				start_time: toLocalTimestamp(newStart),
 				end_time: newEnd ? toLocalTimestamp(newEnd) : null,
 				coefficient: coefficient,
+				category: category,
+				notes: notes || null,
 			})
 			.eq("id", editingShift.id);
 		setEditDialogVisible(false);
@@ -315,6 +324,10 @@ export default function TimesheetDay() {
 					initialEnd={editingShift?.end_time || null}
 					category={editingShift?.category || "shift"}
 					initialCoefficient={editingShift?.coefficient || 1}
+					initialNotes={editingShift?.notes || ""}
+					rejectionReason={editingShift?.rejection_reason}
+					reviewedById={editingShift?.reviewed_by_id}
+					reviewedAt={editingShift?.reviewed_at}
 				/>
 			</View>
 		</SafeAreaView>

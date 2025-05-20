@@ -1,9 +1,19 @@
-import React, { useState } from "react";
-import { View, Modal, Platform, TouchableOpacity } from "react-native";
+import React, { useState, useRef, useEffect } from "react";
+import {
+	View,
+	Modal,
+	Platform,
+	TouchableOpacity,
+	TextInput,
+	Keyboard,
+	ScrollView,
+} from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { Text } from "@/components/ui/text";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { supabase } from "@/config/supabase";
+import { format } from "date-fns";
 
 interface TimeBlockEditDialogProps {
 	visible: boolean;
@@ -13,14 +23,20 @@ interface TimeBlockEditDialogProps {
 		end: Date | null,
 		coefficient: number,
 		category: string,
+		notes?: string,
 	) => void;
 	initialStart: string;
 	initialEnd: string | null;
 	category: string;
 	initialCoefficient: number;
+	initialNotes?: string;
+	rejectionReason?: string | null;
+	reviewedById?: string | null;
+	reviewedAt?: string | null;
 }
 
 import { useColorScheme } from "@/lib/useColorScheme";
+import { UserProfile } from "@/app/(app)/(protected)/schedule";
 
 export const TimeBlockEditDialog: React.FC<TimeBlockEditDialogProps> = ({
 	visible,
@@ -30,6 +46,10 @@ export const TimeBlockEditDialog: React.FC<TimeBlockEditDialogProps> = ({
 	initialEnd,
 	category: initialCategory,
 	initialCoefficient,
+	initialNotes = "",
+	rejectionReason = null,
+	reviewedById = null,
+	reviewedAt = null,
 }) => {
 	const [startDate, setStartDate] = useState<Date>(
 		initialStart ? new Date(initialStart) : new Date(),
@@ -42,7 +62,17 @@ export const TimeBlockEditDialog: React.FC<TimeBlockEditDialogProps> = ({
 	const [coefficient, setCoefficient] = useState<number>(
 		initialCoefficient || 1,
 	);
+	const [isEditingCoefficient, setIsEditingCoefficient] = useState(false);
+	const [coefficientText, setCoefficientText] = useState(
+		(initialCoefficient || 1).toFixed(2),
+	);
 	const [category, setCategory] = useState<string>(initialCategory || "shift");
+	const [notes, setNotes] = useState<string>(initialNotes || "");
+	const [reviewer, setReviewer] = useState<{
+		first_name: string;
+		last_name: string;
+	} | null>(null);
+	const [isLoadingReviewer, setIsLoadingReviewer] = useState(false);
 
 	const { colorScheme } = useColorScheme();
 	const [showPicker, setShowPicker] = useState(false);
@@ -54,12 +84,55 @@ export const TimeBlockEditDialog: React.FC<TimeBlockEditDialogProps> = ({
 			setStartDate(initialStart ? new Date(initialStart) : new Date());
 			setEndDate(initialEnd ? new Date(initialEnd) : null);
 			setCoefficient(initialCoefficient || 1);
+			setCoefficientText((initialCoefficient || 1).toFixed(2));
 			setCategory(initialCategory || "shift");
+			setNotes(initialNotes || "");
 		}
-	}, [visible, initialStart, initialEnd, initialCoefficient, initialCategory]);
+	}, [
+		visible,
+		initialStart,
+		initialEnd,
+		initialCoefficient,
+		initialCategory,
+		initialNotes,
+	]);
+
+	// Fetch reviewer information if there's a reviewedById
+	useEffect(() => {
+		const fetchReviewer = async () => {
+			if (!reviewedById) {
+				setReviewer(null);
+				return;
+			}
+
+			try {
+				setIsLoadingReviewer(true);
+				const { data, error } = await supabase
+					.from("users")
+					.select("first_name, last_name")
+					.eq("id", reviewedById)
+					.single();
+
+				if (error) {
+					console.error("Error fetching reviewer:", error);
+					return;
+				}
+
+				setReviewer(data);
+			} catch (err) {
+				console.error("Error:", err);
+			} finally {
+				setIsLoadingReviewer(false);
+			}
+		};
+
+		if (visible && reviewedById) {
+			fetchReviewer();
+		}
+	}, [visible, reviewedById]);
 
 	const handleSave = () => {
-		onSave(startDate, endDate, coefficient, category);
+		onSave(startDate, endDate, coefficient, category, notes);
 		onClose();
 	};
 
@@ -194,7 +267,7 @@ export const TimeBlockEditDialog: React.FC<TimeBlockEditDialogProps> = ({
 											hour: "2-digit",
 											minute: "2-digit",
 										})
-									: "Ongoing (no end)"}
+									: "Ongoing"}
 							</Text>
 						</TouchableOpacity>
 						{showEndPicker && (
@@ -216,34 +289,77 @@ export const TimeBlockEditDialog: React.FC<TimeBlockEditDialogProps> = ({
 							/>
 						)}
 
-						<TouchableOpacity
-							onPress={() => setEndDate(null)}
-							activeOpacity={0.7}
-							className="mb-4 py-2.5 px-3 rounded-lg bg-zinc-100 dark:bg-zinc-700"
-						>
-							<Text className="text-gray-800 dark:text-gray-200 font-medium">
-								Set as Ongoing
-							</Text>
-						</TouchableOpacity>
-
 						{/* Coefficient input */}
 						<Text className="text-zinc-500 dark:text-zinc-400 mb-2">
 							Coefficient
 						</Text>
 						<View className="flex flex-row items-center justify-between mb-4">
 							<TouchableOpacity
-								onPress={() => setCoefficient(Math.max(0.5, coefficient - 0.1))}
+								onPress={() => {
+									// Round down to the nearest 0.1 increment
+									const currentValue = parseFloat(coefficient.toFixed(2));
+									const decrementedValue =
+										Math.floor(currentValue * 10 - 1) / 10;
+									const newValue = Math.max(0.5, decrementedValue);
+									setCoefficient(newValue);
+									setCoefficientText(newValue.toFixed(2));
+								}}
 								className="p-4 rounded-lg bg-zinc-100 dark:bg-zinc-700"
 							>
 								<Text className="text-gray-800 dark:text-gray-200 font-medium">
 									<Ionicons name="remove" size={24} />
 								</Text>
 							</TouchableOpacity>
-							<Text className="text-zinc-900 dark:text-zinc-100 font-medium w-10 text-center">
-								{coefficient.toFixed(2)}
-							</Text>
+							{isEditingCoefficient ? (
+								<TextInput
+									className="text-zinc-900 dark:text-zinc-100 font-medium w-20 text-center py-2 px-1 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900"
+									value={coefficientText}
+									onChangeText={setCoefficientText}
+									keyboardType="decimal-pad"
+									selectTextOnFocus
+									onBlur={() => {
+										const newValue = parseFloat(coefficientText);
+										if (!isNaN(newValue) && newValue >= 0.5 && newValue <= 10) {
+											setCoefficient(newValue);
+											setCoefficientText(newValue.toFixed(2));
+										} else {
+											setCoefficientText(coefficient.toFixed(2));
+										}
+										setIsEditingCoefficient(false);
+									}}
+									onSubmitEditing={() => {
+										const newValue = parseFloat(coefficientText);
+										if (!isNaN(newValue) && newValue >= 0.5 && newValue <= 10) {
+											setCoefficient(newValue);
+											setCoefficientText(newValue.toFixed(2));
+										} else {
+											setCoefficientText(coefficient.toFixed(2));
+										}
+										setIsEditingCoefficient(false);
+										Keyboard.dismiss();
+									}}
+									autoFocus
+								/>
+							) : (
+								<TouchableOpacity
+									onPress={() => setIsEditingCoefficient(true)}
+									className="w-20 py-2 px-1 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900"
+								>
+									<Text className="text-zinc-900 dark:text-zinc-100 font-medium text-center">
+										{coefficient.toFixed(2)}
+									</Text>
+								</TouchableOpacity>
+							)}
 							<TouchableOpacity
-								onPress={() => setCoefficient(Math.min(10, coefficient + 0.1))}
+								onPress={() => {
+									// Round up to the nearest 0.1 increment
+									const currentValue = parseFloat(coefficient.toFixed(2));
+									const incrementedValue =
+										Math.ceil(currentValue * 10 + 1) / 10;
+									const newValue = Math.min(10, incrementedValue);
+									setCoefficient(newValue);
+									setCoefficientText(newValue.toFixed(2));
+								}}
 								className="p-4 rounded-lg bg-zinc-100 dark:bg-zinc-700"
 							>
 								<Text className="text-gray-800 dark:text-gray-200 font-medium">
@@ -251,6 +367,42 @@ export const TimeBlockEditDialog: React.FC<TimeBlockEditDialogProps> = ({
 								</Text>
 							</TouchableOpacity>
 						</View>
+
+						{/* Notes input */}
+						<Text className="text-zinc-500 dark:text-zinc-400 mb-2 mt-4">
+							Notes
+						</Text>
+						<TextInput
+							className="border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 min-h-[80px]"
+							value={notes}
+							onChangeText={setNotes}
+							multiline
+							placeholder="Add notes about this time block"
+							placeholderTextColor={isDark ? "#9ca3af" : "#6b7280"}
+						/>
+
+						{/* Rejection information */}
+						{rejectionReason && (
+							<View className="mt-4 p-3 border border-red-300 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-900/20">
+								<Text className="text-red-700 dark:text-red-400 font-medium mb-1">
+									Rejection Reason
+								</Text>
+								<Text className="text-red-600 dark:text-red-300 mb-2">
+									{rejectionReason}
+								</Text>
+								{reviewer && reviewedAt && (
+									<Text className="text-zinc-500 dark:text-zinc-400 text-sm">
+										Reviewed by {reviewer.first_name} {reviewer.last_name} on{" "}
+										{format(new Date(reviewedAt), "MMM d, yyyy h:mm a")}
+									</Text>
+								)}
+								{isLoadingReviewer && (
+									<Text className="text-zinc-500 dark:text-zinc-400 text-sm">
+										Loading reviewer information...
+									</Text>
+								)}
+							</View>
+						)}
 					</View>
 					{/* Separator above actions */}
 					<View className="h-1 border-b border-border dark:border-zinc-700" />

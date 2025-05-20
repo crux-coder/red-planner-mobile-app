@@ -74,11 +74,17 @@ const ClockButton: React.FC<{
 	isLoading: boolean;
 	isDark: boolean;
 }> = ({ isClockIn, onPress, isLoading, isDark }) => {
-	const color = isClockIn ? "blue" : "red";
 	const icon = isClockIn
 		? "timer-outline"
 		: ("stop-outline" as keyof typeof Ionicons.glyphMap);
 	const text = isClockIn ? "Clock In" : "Clock Out";
+
+	// Define colors based on clock in/out state
+	const colors = {
+		background: isClockIn ? "bg-blue-200" : "bg-red-200",
+		border: isClockIn ? "border-blue-500" : "border-red-500",
+		icon: isClockIn ? "#2563eb" : "#dc2626",
+	};
 
 	return (
 		<View className="items-center justify-center gap-2 flex">
@@ -86,13 +92,14 @@ const ClockButton: React.FC<{
 				activeOpacity={0.7}
 				onPress={onPress}
 				disabled={isLoading}
-				className={`w-20 h-20 items-center justify-center bg-${color}-200 border-2 border-${color}-500 rounded-full`}
+				className={`w-20 h-20 items-center justify-center rounded-full border-2 ${colors.background} ${colors.border}`}
+				style={{
+					borderColor: isClockIn ? "#3b82f6" : "#ef4444",
+					backgroundColor: isClockIn ? "#bfdbfe" : "#fecaca",
+				}}
 			>
 				{isLoading ? (
-					<ActivityIndicator
-						size="large"
-						color={isClockIn ? "#2563eb" : "#dc2626"}
-					/>
+					<ActivityIndicator size="large" color={colors.icon} />
 				) : (
 					<Ionicons
 						name={icon}
@@ -101,7 +108,10 @@ const ClockButton: React.FC<{
 					/>
 				)}
 			</TouchableOpacity>
-			<Text className={`text-${color}-600 text-lg font-semibold text-center`}>
+			<Text
+				className="text-lg font-semibold text-center"
+				style={{ color: colors.icon }}
+			>
 				{text}
 			</Text>
 		</View>
@@ -167,9 +177,9 @@ export const TimesheetActions: React.FC<TimesheetActionsProps> = ({
 				{!isBreak && !isOvertime && (
 					<ActionButton
 						icon="time-outline"
-						text={currentShift.coefficient > 1 ? "OT" : "Overtime"}
+						text="Overtime"
 						onPress={() => handleAction("overtime")}
-						disabled={currentShift.coefficient > 1}
+						disabled={currentShift.category === "overtime"}
 						processingAction={processingAction}
 						isDark={isDark}
 					/>
