@@ -1,7 +1,7 @@
 import { View, TouchableOpacity, StyleSheet, ViewStyle } from "react-native";
 import { Text } from "@/components/ui/text";
 import { getJobStatusColor, getJobTypeColor } from "@/lib/colors";
-import { Job, JobStatus } from "@/app/(app)/(protected)/schedule/index";
+import { Job, JobStatus } from "@/app/models/types";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/useColorScheme";
 
@@ -26,10 +26,10 @@ export default function JobCard({ job, positionStyle }: JobCardProps) {
 		return null;
 
 	const jobColor = isDark
-		? getJobTypeColor(job.type, "bgDark")
-		: getJobTypeColor(job.type, "bg");
-	const statusColor = getJobStatusColor(job.status, "border");
-	const jobTextColor = getJobTypeColor(job.type, "text");
+		? getJobTypeColor(job.job_type, "bgDark")
+		: getJobTypeColor(job.job_type, "bg");
+	const statusColor = getJobStatusColor(job.job_status, "border");
+	const jobTextColor = getJobTypeColor(job.job_type, "text");
 
 	// Format start and end time
 	const startTime = new Date(job.start_date).toLocaleTimeString("en-US", {
@@ -45,7 +45,7 @@ export default function JobCard({ job, positionStyle }: JobCardProps) {
 	});
 
 	// Get project name
-	const projectName = job.project?.name || "No Project";
+	const projectName = job.job_project?.name || "No Project";
 
 	// Format status for display
 	const formatStatus = (status: JobStatus) => {
@@ -64,7 +64,7 @@ export default function JobCard({ job, positionStyle }: JobCardProps) {
 					...positionStyle,
 					backgroundColor: jobColor,
 					borderLeftWidth: 4,
-					borderLeftColor: getJobTypeColor(job.type, "border"),
+					borderLeftColor: getJobTypeColor(job.job_type, "border"),
 					marginBottom: 4,
 					marginLeft: 4,
 				},
@@ -84,7 +84,7 @@ export default function JobCard({ job, positionStyle }: JobCardProps) {
 				<View
 					style={[styles.statusIndicator, { backgroundColor: statusColor }]}
 				>
-					<Text style={styles.statusText}>{formatStatus(job.status)}</Text>
+					<Text style={styles.statusText}>{formatStatus(job.job_status)}</Text>
 				</View>
 			</View>
 

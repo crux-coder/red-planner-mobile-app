@@ -6,7 +6,7 @@ import { Text } from "@/components/ui/text";
 import { supabase } from "@/config/supabase";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { colors } from "@/constants/colors";
-import { Job, JobStatus } from "../schedule/index";
+import { Job, JobStatus } from "@/app/models/types";
 import { useSupabase } from "@/context/supabase-provider";
 
 // Import new components
@@ -56,11 +56,11 @@ export default function JobDetailScreen() {
 			setLoading(true);
 
 			const { data, error } = await supabase
-				.from("jobs")
+				.from("calendar_entries")
 				.select(
 					`
           *,
-          project:projects(*),
+          job_project:projects(*),
           people_assignments:job_people_assignments(
             *,
             user:users(*)
@@ -99,8 +99,8 @@ export default function JobDetailScreen() {
 			setUpdatingStatus(true);
 
 			const { error } = await supabase
-				.from("jobs")
-				.update({ status: newStatus })
+				.from("calendar_entries")
+				.update({ job_status: newStatus })
 				.eq("id", job.id);
 
 			if (error) {
@@ -110,7 +110,7 @@ export default function JobDetailScreen() {
 			}
 
 			// Update local state
-			setJob({ ...job, status: newStatus });
+			setJob({ ...job, job_status: newStatus });
 		} catch (error) {
 			console.error("Error:", error);
 			Alert.alert("Error", "An unexpected error occurred. Please try again.");
@@ -332,7 +332,7 @@ export default function JobDetailScreen() {
 
 						{/* Action buttons */}
 						<JobActions
-							status={job.status}
+							status={job.job_status}
 							updatingStatus={updatingStatus}
 							onStartJob={handleStartJob}
 							onCompleteJob={handleCompleteJob}

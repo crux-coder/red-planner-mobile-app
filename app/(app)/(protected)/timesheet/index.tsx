@@ -31,7 +31,7 @@ import {
 	setMonth,
 	setYear,
 } from "date-fns";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { TimeBlockEditDialog } from "../../../components/timesheet/TimeBlockEditDialog";
 import { toLocalTimestamp } from "@/lib/utils";
 
@@ -67,6 +67,7 @@ export default function MonthlyTimesheet() {
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
 	const { userProfile } = useSupabase();
+	const scrollViewRef = React.useRef<ScrollView>(null);
 
 	const [loading, setLoading] = useState(true);
 	const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -137,7 +138,7 @@ export default function MonthlyTimesheet() {
 			if (Object.keys(groupedTimeBlocks).length === 0) {
 				// This is the initial load, so we can set default selections
 				const today = new Date();
-				
+
 				if (isSameMonth(today, currentMonth)) {
 					// Select today if we're viewing the current month
 					setSelectedDate(today);
@@ -167,12 +168,42 @@ export default function MonthlyTimesheet() {
 		// We only want to update the current week when the selected date changes
 		// due to user interaction, not due to other effects
 		const newWeekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
-		
+
 		// Only update if the week has actually changed
 		if (!isSameDay(newWeekStart, currentWeek)) {
 			setCurrentWeek(newWeekStart);
 		}
 	}, [selectedDate]);
+
+	// Function to scroll to today's date
+	const scrollToToday = useCallback(() => {
+		if (scrollViewRef.current) {
+			// Find index of today's date
+			const today = new Date();
+			const allDays = getDaysOfMonth();
+			const todayIndex = allDays.findIndex((day) => isSameDay(day, today));
+
+			if (todayIndex !== -1) {
+				// Calculate offset - each item is approximately 60px wide (48px + margins)
+				const itemWidth = 48;
+				const offset = Math.max(0, todayIndex * itemWidth - 100); // Center it with some left padding
+
+				setTimeout(() => {
+					scrollViewRef.current?.scrollTo({
+						x: offset,
+						animated: true,
+					});
+				}, 300); // Small delay to ensure component is fully rendered
+			}
+		}
+	}, [currentMonth]);
+
+	// Use useFocusEffect to scroll to today when screen comes into focus
+	useFocusEffect(
+		useCallback(() => {
+			scrollToToday();
+		}, [scrollToToday]),
+	);
 
 	// Month selection
 	const [showMonthPicker, setShowMonthPicker] = useState(false);
@@ -265,21 +296,12 @@ export default function MonthlyTimesheet() {
 		);
 	};
 
-	// Navigate to previous week
-	const goToPreviousWeek = () => {
-		setCurrentWeek((prev) => subWeeks(prev, 1));
-	};
-
-	// Navigate to next week
-	const goToNextWeek = () => {
-		setCurrentWeek((prev) => addWeeks(prev, 1));
-	};
-
-	// Get days of current week
-	const getDaysOfWeek = () => {
-		const start = currentWeek;
-		const end = endOfWeek(currentWeek, { weekStartsOn: 1 });
-		return eachDayOfInterval({ start, end });
+	// Get all days of current month
+	const getDaysOfMonth = () => {
+		return eachDayOfInterval({
+			start: startOfMonth(currentMonth),
+			end: endOfMonth(currentMonth),
+		});
 	};
 
 	// Select a date to view timeblocks
@@ -408,12 +430,12 @@ export default function MonthlyTimesheet() {
 			<View className="flex-row justify-between items-center border-b border-border bg-card z-20">
 				<View className="flex-1 items-center">
 					{/* Month and year selection in header */}
-					<View className="flex-row justify-center items-center py-2 bg-card">
+					<View className="flex-row justify-center items-center py-3 bg-card">
 						<TouchableOpacity
 							onPress={showMonthYearPicker}
 							className="flex-row items-center justify-center px-4 py-2"
 						>
-							<Text className="text-base text-white font-medium mr-2">
+							<Text className="text-base text-gray-900 dark:text-white font-medium mr-2">
 								{format(currentMonth, "MMMM yyyy")}
 							</Text>
 							<Ionicons
@@ -445,44 +467,49 @@ export default function MonthlyTimesheet() {
 				</View>
 			</View>
 
-			{/* Days of week */}
-			<View className="flex-row justify-between items-center px-2 py-3 bg-card border-b border-border">
-				<TouchableOpacity onPress={goToPreviousWeek} style={{ padding: 8 }}>
-					<Ionicons
-						name="chevron-back"
-						size={24}
-						color={isDark ? "#fff" : "#222"}
-					/>
-				</TouchableOpacity>
-				{getDaysOfWeek().map((day) => {
-					const isSelected = isSameDay(day, selectedDate);
-					const isCurrentMonth = isSameMonth(day, currentMonth);
-					return (
-						<TouchableOpacity
-							key={day.toISOString()}
-							onPress={() => handleSelectDate(day)}
-							className={`items-center p-2 rounded-lg ${isSelected ? "border border-primary" : ""} ${!isCurrentMonth ? "opacity-50" : ""}`}
-						>
-							<Text
-								className={`text-xs ${isSelected ? "text-white" : "text-gray-400"}`}
+			{/* All days of month (scrollable) */}
+			<View className="bg-card border-b border-border">
+				<ScrollView
+					ref={scrollViewRef}
+					horizontal
+					showsHorizontalScrollIndicator={false}
+					contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8 }}
+					style={{ height: 70 }} // Fixed height for the scrollview
+				>
+					{getDaysOfMonth().map((day: Date) => {
+						const isSelected = isSameDay(day, selectedDate);
+						const isToday = isSameDay(day, new Date());
+						return (
+							<TouchableOpacity
+								key={day.toISOString()}
+								onPress={() => handleSelectDate(day)}
+								style={{
+									alignItems: "center",
+									paddingHorizontal: 8,
+									paddingVertical: 4,
+									marginHorizontal: 4,
+									borderRadius: 8,
+									borderWidth: isSelected || (isToday && !isSelected) ? 1 : 0,
+									borderColor: isSelected ? "#3b82f6" : "#d1d5db",
+									backgroundColor: isSelected
+										? "rgba(59, 130, 246, 0.1)"
+										: "transparent",
+								}}
 							>
-								{format(day, "EEE")}
-							</Text>
-							<Text
-								className={`text-base font-medium ${isSelected ? "text-white" : "text-gray-400"}`}
-							>
-								{format(day, "d")}
-							</Text>
-						</TouchableOpacity>
-					);
-				})}
-				<TouchableOpacity onPress={goToNextWeek} style={{ padding: 8 }}>
-					<Ionicons
-						name="chevron-forward"
-						size={24}
-						color={isDark ? "#fff" : "#222"}
-					/>
-				</TouchableOpacity>
+								<Text
+									className={`text-xs ${isSelected ? "text-primary dark:text-white" : "text-gray-500 dark:text-gray-400"}`}
+								>
+									{format(day, "EEE")}
+								</Text>
+								<Text
+									className={`text-base font-medium ${isSelected ? "text-primary dark:text-white" : "text-gray-700 dark:text-gray-400"}`}
+								>
+									{format(day, "d")}
+								</Text>
+							</TouchableOpacity>
+						);
+					})}
+				</ScrollView>
 			</View>
 
 			{/* Selected date header */}

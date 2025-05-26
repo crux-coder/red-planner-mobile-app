@@ -10,17 +10,7 @@ import { getJobStatusColor, getJobTypeColor } from "@/lib/colors";
 import { Text } from "@/components/ui/text";
 import { format } from "date-fns";
 import { router } from "expo-router";
-import { JobStatus } from "@/app/(app)/(protected)/schedule/index";
-
-interface Job {
-	id: string;
-	job_number?: string;
-	title: string;
-	status: string;
-	start_date: string;
-	end_date: string;
-	project?: { name: string };
-}
+import { Job, JobStatus } from "@/app/models/types";
 
 interface JobsListProps {
 	loadingJobs: boolean;
@@ -70,7 +60,7 @@ export const JobsList: React.FC<JobsListProps> = ({
 							</Muted>
 						</View>
 					}
-					renderItem={({ item }) => {
+					renderItem={({ item }: { item: Job }) => {
 						const isCurrentJob =
 							currentShiftJobId && item.id === currentShiftJobId;
 						return (
@@ -88,7 +78,7 @@ export const JobsList: React.FC<JobsListProps> = ({
 											className="px-2 py-1 rounded"
 											style={{
 												backgroundColor: getJobStatusColor(
-													item.status as JobStatus,
+													item.job_status as JobStatus,
 													"bg",
 													isDark,
 												),
@@ -98,19 +88,21 @@ export const JobsList: React.FC<JobsListProps> = ({
 												className="text-xs font-medium"
 												style={{
 													color: getJobStatusColor(
-														item.status as JobStatus,
+														item.job_status as JobStatus,
 														"text",
 														isDark,
 													),
 												}}
 											>
-												{formatStatus(item.status as JobStatus)}
+												{formatStatus(item.job_status)}
 											</Text>
 										</View>
 									</View>
 									<View>
 										<View>
-											{item.project && <Muted>{item.project.name}</Muted>}
+											{item.job_project && (
+												<Muted>{item.job_project.name}</Muted>
+											)}
 										</View>
 										<View>
 											<Muted>

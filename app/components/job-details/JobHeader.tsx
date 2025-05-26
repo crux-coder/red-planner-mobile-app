@@ -2,11 +2,7 @@ import React from "react";
 import { View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
-import {
-	Job,
-	JobStatus,
-	JobType,
-} from "@/app/(app)/(protected)/schedule/index";
+import { Job, JobStatus, JobType } from "@/app/models/types";
 import { getJobStatusColor, getJobTypeColor } from "@/lib/colors";
 import { useColorScheme } from "@/lib/useColorScheme";
 
@@ -43,16 +39,16 @@ export const JobHeader: React.FC<JobHeaderProps> = ({ job }) => {
 	return (
 		<View
 			className="p-4 mb-2 rounded-lg"
-			style={{ backgroundColor: getStatusBgColor(job.status) }}
+			style={{ backgroundColor: getStatusBgColor(job.job_status) }}
 		>
 			{/* First row: Job Number and Project Name */}
 			<View className="flex-row justify-between items-center mb-2">
 				<Text className="text-xl font-bold text-foreground">
 					{job.job_number || "No Job Number"}
 				</Text>
-				{job.project && (
+				{job.job_project && (
 					<Text className="text-xl font-semibold text-foreground">
-						{job.project.name}
+						{job.job_project.name}
 					</Text>
 				)}
 			</View>
@@ -66,7 +62,7 @@ export const JobHeader: React.FC<JobHeaderProps> = ({ job }) => {
 						color="text-foreground"
 					/>
 					<Text className="ml-1 text-base text-foreground">
-						{job.type.toUpperCase()}
+						{job.job_type.toUpperCase()}
 					</Text>
 				</View>
 				<View
@@ -74,7 +70,7 @@ export const JobHeader: React.FC<JobHeaderProps> = ({ job }) => {
 					style={{ backgroundColor: "rgba(255, 255, 255, 0.2)" }}
 				>
 					<Text className="text-base font-bold text-foreground">
-						{formatStatus(job.status)}
+						{formatStatus(job.job_status)}
 					</Text>
 				</View>
 			</View>

@@ -14,50 +14,7 @@ import { format } from "date-fns";
 import { supabase } from "@/config/supabase";
 import { toLocalTimestamp } from "@/lib/utils";
 import { useRouter } from "expo-router";
-
-interface Shift {
-	id: string;
-	worker_id: string;
-	job_id: string;
-	start_time: string;
-	end_time: string | null;
-	category: "shift" | "overtime" | "break";
-	type: "regular" | "job";
-	coefficient: number;
-	notes: string | null;
-	created_at: string;
-}
-
-// Define the Job interface
-interface Project {
-	id: string;
-	name: string;
-	description?: string;
-}
-
-interface UserProfile {
-	id: string;
-	first_name: string;
-	last_name: string;
-	photo?: string;
-}
-
-interface Job {
-	id: string;
-	title: string;
-	description?: string;
-	start_date: string;
-	end_date: string;
-	type: string;
-	status: string;
-	job_number?: string;
-	project?: Project;
-	notes?: string;
-	people_assignments: {
-		id: string;
-		user: UserProfile;
-	}[];
-}
+import { Job, Shift } from "@/app/models/types";
 
 // Define action types
 type ActionType =
@@ -139,11 +96,11 @@ export default function TimeTracker() {
 
 			// Query for jobs assigned to the user that are scheduled for today
 			const { data, error } = await supabase
-				.from("jobs")
+				.from("calendar_entries")
 				.select(
 					`
 					*,
-					project(*),
+					job_project:projects(*),
 					people_assignments:job_people_assignments!inner(
 						id,
 						user:user(
@@ -230,7 +187,7 @@ export default function TimeTracker() {
 		try {
 			setClockingIn(true);
 
-			const now = new Date().toISOString();
+			const now = toLocalTimestamp(new Date());
 
 			const { data, error } = await supabase
 				.from("time_blocks")
@@ -338,7 +295,7 @@ export default function TimeTracker() {
 		try {
 			setProcessingAction(true);
 
-			const now = new Date().toISOString();
+			const now = toLocalTimestamp(new Date());
 
 			switch (actionType) {
 				case "break": {
@@ -476,8 +433,8 @@ export default function TimeTracker() {
 					// Update job status to completed if job_id is present
 					if (currentShift.job_id) {
 						await supabase
-							.from("jobs")
-							.update({ status: "completed" })
+							.from("calendar_entries")
+							.update({ job_status: "completed" })
 							.eq("id", currentShift.job_id);
 					}
 
@@ -541,13 +498,13 @@ export default function TimeTracker() {
 		end: Date | null,
 		coefficient: number,
 		category: string,
-		notes?: string
+		notes?: string,
 	) => {
 		if (!shiftToEdit || !userProfile) return;
 
 		try {
 			setProcessingAction(true);
-			
+
 			// Update the time block in the database
 			const { data, error } = await supabase
 				.from("time_blocks")

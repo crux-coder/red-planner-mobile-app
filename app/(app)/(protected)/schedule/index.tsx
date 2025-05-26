@@ -17,70 +17,7 @@ import HourMarkers from "@/app/components/home/HourMarkers";
 import CurrentTimeIndicator from "@/app/components/home/CurrentTimeIndicator";
 import JobCard from "@/app/components/home/JobCard";
 import { useFocusEffect } from "@react-navigation/native";
-
-// Define job related types
-export type JobType = "survey" | "data" | "cad" | "qa";
-export type JobStatus =
-	| "unscheduled"
-	| "pre_booked"
-	| "booked"
-	| "completed"
-	| "canceled"
-	| "to_reschedule"
-	| "in_progress";
-
-// Define Project interface
-export interface Project {
-	id: string;
-	name: string;
-	client?: string;
-	description?: string;
-}
-
-// Define UserProfile interface
-export interface UserProfile {
-	id: string;
-	first_name?: string;
-	last_name?: string;
-	email?: string;
-	photo?: string;
-	role?: string;
-	title?: string;
-	phone_number?: string;
-}
-
-export interface Job {
-	id: string;
-	title: string;
-	description?: string;
-	start_date: string;
-	end_date: string;
-	type: JobType;
-	status: JobStatus;
-	job_number?: string;
-	project?: Project;
-	notes?: string;
-	people_assignments: {
-		id: string;
-		user: UserProfile;
-	}[];
-	equipment_assignments: {
-		id: string;
-		equipment: {
-			id: string;
-			name: string;
-			type?: string;
-		};
-	}[];
-	transportation_assignments: {
-		id: string;
-		transportation: {
-			id: string;
-			name: string;
-			type?: string;
-		};
-	}[];
-}
+import { Job } from "@/app/models/types";
 
 export default function Home() {
 	const [jobsCache, setJobsCache] = useState<Record<string, Job[]>>({});
@@ -98,18 +35,22 @@ export default function Home() {
 	// Function to scroll to current time
 	const scrollToCurrentTime = useCallback(() => {
 		if (!scrollViewRef.current) return;
-		
+
 		const currentHour = new Date().getHours();
 		const currentMinute = new Date().getMinutes();
-		
+
 		// Calculate position based on current time
-		const currentTimePosition = (currentHour + currentMinute / 60) * HOUR_HEIGHT + 11;
-		
+		const currentTimePosition =
+			(currentHour + currentMinute / 60) * HOUR_HEIGHT + 11;
+
 		// Get screen height to center the current time line
-		const screenHeight = Dimensions.get('window').height;
+		const screenHeight = Dimensions.get("window").height;
 		const headerHeight = 100; // Approximate height of the header
-		const scrollPosition = Math.max(0, currentTimePosition - (screenHeight - headerHeight) / 2);
-		
+		const scrollPosition = Math.max(
+			0,
+			currentTimePosition - (screenHeight - headerHeight) / 2,
+		);
+
 		// Scroll to the calculated position
 		scrollViewRef.current.scrollTo({ y: scrollPosition, animated: true });
 	}, [HOUR_HEIGHT]);
@@ -151,7 +92,7 @@ export default function Home() {
 	useFocusEffect(
 		useCallback(() => {
 			loadInitialData();
-			
+
 			// Scroll to current time after data is loaded
 			setTimeout(() => {
 				scrollToCurrentTime();
@@ -182,11 +123,11 @@ export default function Home() {
 
 				// Fetch jobs for the specified date with all related data
 				const { data, error } = await supabase
-					.from("jobs")
+					.from("calendar_entries")
 					.select(
 						`
 					*,
-					project:projects(*),
+					job_project:projects(*),
 					people_assignments:job_people_assignments!inner(
 						*,
 						user:users(*)
@@ -256,12 +197,18 @@ export default function Home() {
 		if (!jobsCache[todayKey]) {
 			fetchJobsForDate(today);
 		}
-		
+
 		// Scroll to current time after navigating to today
 		setTimeout(() => {
 			scrollToCurrentTime();
 		}, 300);
-	}, [currentDate, jobsCache, formatDateKey, fetchJobsForDate, scrollToCurrentTime]);
+	}, [
+		currentDate,
+		jobsCache,
+		formatDateKey,
+		fetchJobsForDate,
+		scrollToCurrentTime,
+	]);
 
 	// Format the current date for display
 	const formattedDate = new Intl.DateTimeFormat("en-US", {
@@ -270,8 +217,6 @@ export default function Home() {
 		month: "long",
 		day: "numeric",
 	}).format(currentDate);
-
-
 
 	// Get jobs for the current date
 	const currentDateKey = formatDateKey(currentDate);
@@ -312,27 +257,27 @@ export default function Home() {
 					/>
 				</TouchableOpacity>
 			</View>
-		<View className="flex-1 bg-background">
-			{/* Schedule View */}
-			<ScrollView
-				ref={scrollViewRef}
-				className="flex-1 bg-background"
-				contentContainerStyle={{ minHeight: 24 * HOUR_HEIGHT }}
-				refreshControl={
-					<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-				}
-				onContentSizeChange={() => {
-					// Scroll to current time when content size changes (e.g., after initial render)
-					if (currentDateKey === formatDateKey(new Date())) {
-						scrollToCurrentTime();
+			<View className="flex-1 bg-background">
+				{/* Schedule View */}
+				<ScrollView
+					ref={scrollViewRef}
+					className="flex-1 bg-background"
+					contentContainerStyle={{ minHeight: 24 * HOUR_HEIGHT }}
+					refreshControl={
+						<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
 					}
-				}}
-			>
-				{/* Hour markers */}
-				<HourMarkers hourHeight={HOUR_HEIGHT} />
+					onContentSizeChange={() => {
+						// Scroll to current time when content size changes (e.g., after initial render)
+						if (currentDateKey === formatDateKey(new Date())) {
+							scrollToCurrentTime();
+						}
+					}}
+				>
+					{/* Hour markers */}
+					<HourMarkers hourHeight={HOUR_HEIGHT} />
 
-				{/* Current time indicator */}
-				<CurrentTimeIndicator hourHeight={HOUR_HEIGHT} visible={true} />
+					{/* Current time indicator */}
+					<CurrentTimeIndicator hourHeight={HOUR_HEIGHT} visible={true} />
 					{/* Job cards */}
 					{currentJobs.map((job) => {
 						// Parse job start and end times

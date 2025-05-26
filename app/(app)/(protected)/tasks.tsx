@@ -15,7 +15,7 @@ import { supabase } from "@/config/supabase";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { colors } from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
-import { ProjectTask } from "@/app/models/task";
+import { ProjectTask } from "@/app/models/types";
 import { format, parseISO, isToday, isPast, isFuture } from "date-fns";
 import { useSupabase } from "@/context/supabase-provider";
 
