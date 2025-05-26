@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { View, ScrollView, ActivityIndicator, Alert } from "react-native";
+import {
+	View,
+	ScrollView,
+	ActivityIndicator,
+	Alert,
+	Text as RNText,
+	TouchableOpacity,
+	SafeAreaView,
+} from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 
 import { Text } from "@/components/ui/text";
@@ -9,7 +17,7 @@ import { colors } from "@/constants/colors";
 import { Job, JobStatus } from "@/app/models/types";
 import { useSupabase } from "@/context/supabase-provider";
 
-// Import new components
+// Import components
 import JobHeader from "@/app/components/job-details/JobHeader";
 import JobDateTime from "@/app/components/job-details/JobDateTime";
 import PeopleAssignments from "@/app/components/job-details/PeopleAssignments";
@@ -20,7 +28,11 @@ import JobActions from "@/app/components/job-details/JobActions";
 import Separator from "@/app/components/common/Separator";
 import { toLocalTimestamp } from "@/lib/utils";
 
-export default function JobDetailScreen() {
+type JobDetailScreenProps = {
+	source: "schedule" | "tracker"; // Indicates which screen is using this component
+};
+
+export default function JobDetailScreen({ source }: JobDetailScreenProps) {
 	const { id } = useLocalSearchParams<{ id: string }>();
 	const [job, setJob] = useState<Job | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -111,6 +123,14 @@ export default function JobDetailScreen() {
 
 			// Update local state
 			setJob({ ...job, job_status: newStatus });
+
+			// Only show success alert in schedule view
+			if (source === "schedule") {
+				Alert.alert(
+					"Success",
+					`Job status updated to ${newStatus.replace(/_/g, " ")}`,
+				);
+			}
 		} catch (error) {
 			console.error("Error:", error);
 			Alert.alert("Error", "An unexpected error occurred. Please try again.");
@@ -123,6 +143,13 @@ export default function JobDetailScreen() {
 	const handleStartJob = async () => {
 		if (!userProfile || !job) return;
 
+		if (source === "schedule") {
+			// Simple status update for schedule view
+			updateJobStatus("in_progress");
+			return;
+		}
+
+		// Enhanced time tracking functionality for tracker view
 		try {
 			setUpdatingStatus(true);
 
@@ -132,7 +159,7 @@ export default function JobDetailScreen() {
 			// 2. End current shift if active (find latest shift for this user with end_time null)
 			const now = new Date();
 			const nowFormatted = toLocalTimestamp(now);
-			const { data: activeShifts, error: shiftError } = await supabase
+			const { data: activeShift, error: shiftError } = await supabase
 				.from("time_blocks")
 				.select("*")
 				.eq("worker_id", userProfile.id)
@@ -140,14 +167,15 @@ export default function JobDetailScreen() {
 				.order("start_time", { ascending: false })
 				.single();
 
-			if (shiftError) {
+			if (shiftError && !shiftError.message.includes("No rows found")) {
 				console.error("Error fetching current shift:", shiftError);
 				Alert.alert("Error", "Could not check current shift.");
 				return;
 			}
 
-			if (activeShifts) {
-				const shiftId = activeShifts.id;
+			// If there's an active shift, end it
+			if (activeShift) {
+				const shiftId = activeShift.id;
 				const { error: endError } = await supabase
 					.from("time_blocks")
 					.update({ end_time: nowFormatted })
@@ -159,18 +187,18 @@ export default function JobDetailScreen() {
 				}
 			}
 
-			// 3. Start new job shift
+			// 3. Start a new job-specific shift
 			const { error: startError } = await supabase
 				.from("time_blocks")
 				.insert({
 					worker_id: userProfile.id,
-					category: "shift",
+					category: "job",
 					type: "job",
-					job_id: job.id,
-					coefficient: 1,
+					coefficient: 1, // Regular pay rate
 					start_time: nowFormatted,
 					end_time: null,
-					notes: "",
+					notes: `Working on job #${job.job_number}`,
+					related_job_id: job.id,
 				})
 				.select()
 				.single();
@@ -195,8 +223,15 @@ export default function JobDetailScreen() {
 
 	// Handle complete job
 	const handleCompleteJob = async () => {
-		if (!userProfile) return;
+		if (!userProfile || !job) return;
 
+		if (source === "schedule") {
+			// Simple status update for schedule view
+			updateJobStatus("completed");
+			return;
+		}
+
+		// Enhanced time tracking functionality for tracker view
 		try {
 			setUpdatingStatus(true);
 
@@ -214,7 +249,7 @@ export default function JobDetailScreen() {
 				.order("start_time", { ascending: false })
 				.single();
 
-			if (shiftError) {
+			if (shiftError && !shiftError.message.includes("No rows found")) {
 				console.error("Error fetching current shift:", shiftError);
 				Alert.alert("Error", "Could not check current shift.");
 				return;

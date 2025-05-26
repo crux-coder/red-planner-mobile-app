@@ -14,23 +14,6 @@ export default function AppLayout() {
 	return (
 		<Stack screenOptions={{ headerShown: false, gestureEnabled: false }}>
 			<Stack.Screen name="index" />
-			<Stack.Screen name="day" />
-			<Stack.Screen
-				name="job"
-				options={{
-					presentation: "modal",
-					headerShown: true,
-					headerStyle: {
-						backgroundColor: isDark
-							? colors.dark.background
-							: colors.light.background,
-					},
-					headerTintColor: isDark
-						? colors.dark.foreground
-						: colors.light.foreground,
-					gestureEnabled: true,
-				}}
-			/>
 		</Stack>
 	);
 }

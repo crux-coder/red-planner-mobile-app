@@ -21,9 +21,6 @@ import {
 	startOfMonth,
 	endOfMonth,
 	startOfWeek,
-	endOfWeek,
-	addWeeks,
-	subWeeks,
 	eachDayOfInterval,
 	isSameDay,
 	isSameMonth,
@@ -32,30 +29,9 @@ import {
 	setYear,
 } from "date-fns";
 import { useRouter, useFocusEffect } from "expo-router";
-import { TimeBlockEditDialog } from "../../../components/timesheet/TimeBlockEditDialog";
+import { TimeBlockEditDialog } from "@/app/components/timesheet/TimeBlockEditDialog";
 import { toLocalTimestamp } from "@/lib/utils";
-
-// Define the TimeBlock interface
-export interface TimeBlock {
-	id: string;
-	worker_id: string;
-	job_id?: string;
-	start_time: string;
-	end_time: string | null;
-	category: "shift" | "overtime" | "break";
-	type: "regular" | "job";
-	status: "pending" | "approved" | "rejected";
-	coefficient: number;
-	notes: string | null;
-	created_at: string;
-	job?: {
-		id: string;
-		job_number: string;
-	};
-	rejection_reason: string | null;
-	reviewed_by_id: string | null;
-	reviewed_at: string | null;
-}
+import { TimeBlock } from "@/app/models/types";
 
 // Group timeblocks by date
 interface GroupedTimeBlocks {
@@ -328,7 +304,7 @@ export default function MonthlyTimesheet() {
 
 	// Format time for display
 	const formatTime = (timeString: string) => {
-		return format(new Date(timeString), "h:mm a");
+		return format(new Date(timeString), "HH:mm");
 	};
 
 	// Handle editing a timeblock

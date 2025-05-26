@@ -66,7 +66,7 @@ export const JobsList: React.FC<JobsListProps> = ({
 						return (
 							<TouchableOpacity
 								className={`mb-2 p-4 bg-card rounded-lg border ${isCurrentJob ? "border-green-500 bg-green-500/25" : "border-border"}`}
-								onPress={() => router.push(`/timesheet/job?id=${item.id}`)}
+								onPress={() => router.push(`/tracker/job?id=${item.id}`)}
 							>
 								<View className="flex gap-2">
 									<View className="flex-row flex-1 items-center justify-between">

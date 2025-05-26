@@ -14,23 +14,13 @@ import { format } from "date-fns";
 import { supabase } from "@/config/supabase";
 import { toLocalTimestamp } from "@/lib/utils";
 import { useRouter } from "expo-router";
-import { Job, Shift } from "@/app/models/types";
-
-// Define action types
-type ActionType =
-	| "break"
-	| "endbreak"
-	| "overtime"
-	| "job"
-	| "clockout"
-	| "completejob";
+import { Job, TimeBlock } from "@/app/models/types";
+import { useTimeTracker, ActionType } from "@/app/hooks/useTimeTracker";
 
 export default function TimeTracker() {
-	const [currentShift, setCurrentShift] = useState<Shift | null>(null);
+	const [currentShift, setCurrentShift] = useState<TimeBlock | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [clockingIn, setClockingIn] = useState(false);
-	const [clockingOut, setClockingOut] = useState(false);
-	const [processingAction, setProcessingAction] = useState(false);
 	const [elapsedTime, setElapsedTime] = useState<string>("00:00:00");
 	const [userJobs, setUserJobs] = useState<Job[]>([]);
 	const [loadingJobs, setLoadingJobs] = useState(false);
@@ -43,7 +33,8 @@ export default function TimeTracker() {
 	>("shift");
 	// State for TimeBlockEditDialog
 	const [showEditDialog, setShowEditDialog] = useState(false);
-	const [shiftToEdit, setShiftToEdit] = useState<Shift | null>(null);
+	const [shiftToEdit, setShiftToEdit] = useState<TimeBlock | null>(null);
+	const [isUpdating, setIsUpdating] = useState(false); // For edit dialog loading state
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
 	const { userProfile } = useSupabase();
@@ -286,191 +277,17 @@ export default function TimeTracker() {
 	};
 
 	// Function to actually perform the action with the selected coefficient
-	const performAction = async (
-		actionType: ActionType,
-		customCoefficient: number | null,
-	) => {
-		if (!userProfile || !currentShift) return;
+	// Import our custom hook
+	// Initialize the timeTracker hook
+	// We'll initialize the useTimeTracker hook after defining fetchCurrentShift
 
-		try {
-			setProcessingAction(true);
-
-			const now = toLocalTimestamp(new Date());
-
-			switch (actionType) {
-				case "break": {
-					// End current shift
-					const endCurrentShift = await supabase
-						.from("time_blocks")
-						.update({ end_time: now })
-						.eq("id", currentShift.id);
-
-					if (endCurrentShift.error) {
-						console.error("Error ending current shift:", endCurrentShift.error);
-						return;
-					}
-
-					// Start break
-					const { data: breakData, error: breakError } = await supabase
-						.from("time_blocks")
-						.insert({
-							worker_id: userProfile.id,
-							category: "break",
-							type: "regular",
-							coefficient: 0, // No pay during breaks
-							start_time: now,
-							end_time: null,
-							notes: "",
-						})
-						.select()
-						.single();
-
-					if (breakError) {
-						console.error("Error starting break:", breakError);
-						return;
-					}
-
-					setCurrentShift(breakData);
-					break;
-				}
-
-				case "endbreak": {
-					// End break
-					const endBreak = await supabase
-						.from("time_blocks")
-						.update({ end_time: now })
-						.eq("id", currentShift.id);
-
-					if (endBreak.error) {
-						console.error("Error ending break:", endBreak.error);
-						return;
-					}
-
-					// Start new shift
-					const { data: newShift, error: startError } = await supabase
-						.from("time_blocks")
-						.insert({
-							worker_id: userProfile.id,
-							category: "shift",
-							type: "regular",
-							coefficient: 1, // Default coefficient for new shift after break
-							start_time: now,
-							end_time: null,
-							notes: "",
-						})
-						.select()
-						.single();
-
-					if (startError) {
-						console.error("Error starting new shift:", startError);
-						return;
-					}
-
-					setCurrentShift(newShift);
-					break;
-				}
-
-				case "overtime": {
-					// End current shift
-					const endCurrentShift = await supabase
-						.from("time_blocks")
-						.update({ end_time: now })
-						.eq("id", currentShift.id);
-
-					if (endCurrentShift.error) {
-						console.error("Error ending current shift:", endCurrentShift.error);
-						return;
-					}
-
-					// Start overtime shift
-					const coefficient = customCoefficient || 1.5; // Default overtime is 1.5x
-					const { data: overtimeShift, error: overtimeError } = await supabase
-						.from("time_blocks")
-						.insert({
-							worker_id: userProfile.id,
-							category: "overtime",
-							type: "regular",
-							coefficient: coefficient,
-							start_time: now,
-							end_time: null,
-							notes: "",
-						})
-						.select()
-						.single();
-
-					if (overtimeError) {
-						console.error("Error starting overtime:", overtimeError);
-						return;
-					}
-
-					setCurrentShift(overtimeShift);
-					break;
-				}
-
-				case "job": {
-					// Show job selection
-					router.push("/timesheet/job");
-					break;
-				}
-
-				case "clockout":
-					// Just end the current shift without starting a new one
-					setCurrentShift(null);
-					break;
-
-				case "completejob": {
-					// Complete job: end current shift, start new regular shift, update job status
-					const endCurrentShift = await supabase
-						.from("time_blocks")
-						.update({ end_time: now })
-						.eq("id", currentShift.id);
-
-					if (endCurrentShift.error) {
-						console.error("Error ending current shift:", endCurrentShift.error);
-						return;
-					}
-
-					// Update job status to completed if job_id is present
-					if (currentShift.job_id) {
-						await supabase
-							.from("calendar_entries")
-							.update({ job_status: "completed" })
-							.eq("id", currentShift.job_id);
-					}
-
-					// Start new regular shift
-					const { data: newShift, error: startError } = await supabase
-						.from("time_blocks")
-						.insert({
-							worker_id: userProfile.id,
-							category: "shift",
-							type: "regular",
-							coefficient: 1, // Default coefficient for new shift after job completion
-							start_time: now,
-							end_time: null,
-							notes: "",
-						})
-						.select()
-						.single();
-
-					if (startError) {
-						console.error("Error starting new shift:", startError);
-						return;
-					}
-
-					setCurrentShift(newShift);
-					break;
-				}
-			}
-		} catch (error) {
-			console.error("Error processing action:", error);
-			// If there was an error, refresh the current shift to ensure UI is in sync
-			await fetchCurrentShift();
-		} finally {
-			setProcessingAction(false);
-			setClockingOut(false);
-		}
-	};
+	// Now we can initialize our useTimeTracker hook
+	const { performAction, processingAction, clockingOut } = useTimeTracker({
+		userProfile,
+		currentShift,
+		onShiftChange: setCurrentShift,
+		onFetchCurrentShift: fetchCurrentShift,
+	});
 
 	// Pull fresh data every time the screen is focused
 	useFocusEffect(
@@ -487,7 +304,7 @@ export default function TimeTracker() {
 	};
 
 	// Handle opening the edit dialog for a shift
-	const handleEditShift = (shift: Shift) => {
+	const handleEditShift = (shift: TimeBlock) => {
 		setShiftToEdit(shift);
 		setShowEditDialog(true);
 	};
@@ -503,7 +320,7 @@ export default function TimeTracker() {
 		if (!shiftToEdit || !userProfile) return;
 
 		try {
-			setProcessingAction(true);
+			setIsUpdating(true);
 
 			// Update the time block in the database
 			const { data, error } = await supabase
@@ -532,7 +349,7 @@ export default function TimeTracker() {
 			console.error("Error:", error);
 			Alert.alert("Error", "An unexpected error occurred");
 		} finally {
-			setProcessingAction(false);
+			setIsUpdating(false);
 			setShowEditDialog(false);
 			setShiftToEdit(null);
 		}

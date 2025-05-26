@@ -1,10 +1,35 @@
 import { Stack } from "expo-router";
-import React from "react";
 
-export default function TrackerLayout() {
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" options={{ title: "Time Tracker" }} />
-    </Stack>
-  );
+import { colors } from "@/constants/colors";
+import { useColorScheme } from "@/lib/useColorScheme";
+
+export const unstable_settings = {
+	initialRouteName: "welcome",
+};
+
+export default function AppLayout() {
+	const { colorScheme } = useColorScheme();
+	const isDark = colorScheme === "dark";
+
+	return (
+		<Stack screenOptions={{ headerShown: false, gestureEnabled: false }}>
+			<Stack.Screen name="index" />
+			<Stack.Screen
+				name="job"
+				options={{
+					presentation: "modal",
+					headerShown: true,
+					headerStyle: {
+						backgroundColor: isDark
+							? colors.dark.background
+							: colors.light.background,
+					},
+					headerTintColor: isDark
+						? colors.dark.foreground
+						: colors.light.foreground,
+					gestureEnabled: true,
+				}}
+			/>
+		</Stack>
+	);
 }

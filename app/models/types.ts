@@ -72,15 +72,24 @@ export interface Job {
 	}[];
 }
 
-export interface Shift {
+// Define the TimeBlock interface
+export interface TimeBlock {
 	id: string;
 	worker_id: string;
-	job_id: string;
+	job_id?: string;
 	start_time: string;
 	end_time: string | null;
 	category: "shift" | "overtime" | "break";
 	type: "regular" | "job";
+	status: "pending" | "approved" | "rejected";
 	coefficient: number;
 	notes: string | null;
 	created_at: string;
+	job?: {
+		id: string;
+		job_number: string;
+	};
+	rejection_reason: string | null;
+	reviewed_by_id: string | null;
+	reviewed_at: string | null;
 }
