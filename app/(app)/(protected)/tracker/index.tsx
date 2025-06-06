@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useFocusEffect } from "@react-navigation/native";
-import { View, Alert } from "react-native";
+import { View, Alert, Button } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/text";
 import { CurrentShiftCard } from "@/app/components/timesheet/CurrentShiftCard";
@@ -16,6 +16,7 @@ import { toLocalTimestamp } from "@/lib/utils";
 import { useRouter } from "expo-router";
 import { Job, TimeBlock } from "@/app/models/types";
 import { useTimeTracker, ActionType } from "@/app/hooks/useTimeTracker";
+import { captureException } from "@sentry/react-native";
 
 export default function TimeTracker() {
 	const [currentShift, setCurrentShift] = useState<TimeBlock | null>(null);
@@ -137,7 +138,7 @@ export default function TimeTracker() {
 					clearInterval(intervalId);
 				}
 			};
-		}, [currentShift])
+		}, [currentShift]),
 	);
 
 	// Function to update elapsed time
@@ -367,6 +368,12 @@ export default function TimeTracker() {
 						</Text>
 					</View>
 				</View>
+				<Button
+					title="Try!"
+					onPress={() => {
+						captureException(new Error("First error"));
+					}}
+				/>
 				{/* Current Shift Card */}
 				<View className="p-2 pb-0">
 					<CurrentShiftCard
