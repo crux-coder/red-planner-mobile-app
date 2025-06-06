@@ -1,19 +1,22 @@
 import { Stack } from "expo-router";
 
-import { colors } from "@/constants/colors";
-import { useColorScheme } from "@/lib/useColorScheme";
-
 export const unstable_settings = {
-	initialRouteName: "welcome",
+	initialRouteName: "index",
 };
 
 export default function AppLayout() {
-	const { colorScheme } = useColorScheme();
-	const isDark = colorScheme === "dark";
-
 	return (
 		<Stack screenOptions={{ headerShown: false, gestureEnabled: false }}>
 			<Stack.Screen name="index" />
+			<Stack.Screen
+				name="add-block"
+				options={{
+					presentation: "modal",
+					animationTypeForReplace: "push",
+					gestureEnabled: true,
+					animation: "slide_from_bottom",
+				}}
+			/>
 		</Stack>
 	);
 }

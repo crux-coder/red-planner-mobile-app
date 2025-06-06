@@ -3,11 +3,12 @@ import {
 	ActivityIndicator,
 	ScrollView,
 	TouchableOpacity,
-	Modal,
 	Platform,
 	ActionSheetIOS,
 	View,
 	Text,
+	StyleSheet,
+	RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,7 +29,7 @@ import {
 	setMonth,
 	setYear,
 } from "date-fns";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect, router } from "expo-router";
 import { TimeBlockEditDialog } from "@/app/components/timesheet/TimeBlockEditDialog";
 import { toLocalTimestamp } from "@/lib/utils";
 import { TimeBlock } from "@/app/models/types";
@@ -39,6 +40,25 @@ interface GroupedTimeBlocks {
 }
 
 export default function MonthlyTimesheet() {
+	// FAB styles
+	const styles = StyleSheet.create({
+		fab: {
+			position: "absolute",
+			width: 56,
+			height: 56,
+			alignItems: "center",
+			justifyContent: "center",
+			right: 20,
+			bottom: 20,
+			backgroundColor: "#3b82f6",
+			borderRadius: 28,
+			elevation: 8,
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 2 },
+			shadowOpacity: 0.25,
+			shadowRadius: 3.84,
+		},
+	});
 	const router = useRouter();
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
@@ -46,6 +66,7 @@ export default function MonthlyTimesheet() {
 	const scrollViewRef = React.useRef<ScrollView>(null);
 
 	const [loading, setLoading] = useState(true);
+	const [refreshing, setRefreshing] = useState(false);
 	const [currentMonth, setCurrentMonth] = useState(new Date());
 	const [currentWeek, setCurrentWeek] = useState(
 		startOfWeek(new Date(), { weekStartsOn: 1 }),
@@ -130,13 +151,26 @@ export default function MonthlyTimesheet() {
 			console.error("Error:", error);
 		} finally {
 			setLoading(false);
+			setRefreshing(false);
 		}
 	}, [userProfile, currentMonth]);
 
+	// Handle pull-to-refresh
+	const onRefresh = useCallback(async () => {
+		setRefreshing(true);
+		try {
+			await fetchTimeBlocksForMonth();
+		} finally {
+			setRefreshing(false);
+		}
+	}, [currentMonth, userProfile]);
+
 	// Initial fetch
-	useEffect(() => {
-		fetchTimeBlocksForMonth();
-	}, [fetchTimeBlocksForMonth]);
+	useFocusEffect(
+		useCallback(() => {
+			fetchTimeBlocksForMonth();
+		}, [fetchTimeBlocksForMonth])
+	);
 
 	// Sync week view with selected date, but only when explicitly changing the date
 	// This prevents the circular dependency that was causing the date to revert
@@ -506,7 +540,17 @@ export default function MonthlyTimesheet() {
 					/>
 				</View>
 			) : (
-				<ScrollView className="flex-1">
+				<ScrollView
+					className="flex-1"
+					refreshControl={
+						<RefreshControl
+							refreshing={refreshing}
+							onRefresh={onRefresh}
+							tintColor={isDark ? "#3b82f6" : "#2563eb"}
+							colors={["#3b82f6"]}
+						/>
+					}
+				>
 					{Object.keys(groupedTimeBlocks).length === 0 ? (
 						<View className="p-8 items-center justify-center">
 							<Text className="text-center dark:text-white">
@@ -599,6 +643,14 @@ export default function MonthlyTimesheet() {
 					)}
 				</ScrollView>
 			)}
+
+			{/* Floating Action Button */}
+			<TouchableOpacity
+				style={styles.fab}
+				onPress={() => router.push("/timesheet/add-block")}
+			>
+				<Ionicons name="add" size={24} color="white" />
+			</TouchableOpacity>
 
 			{/* Edit dialog */}
 			{editingTimeBlock && (

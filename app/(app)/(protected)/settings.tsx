@@ -240,7 +240,7 @@ export default function Settings() {
 	}
 
 	return (
-		<SafeAreaView className="flex-1 bg-background" edges={['top']}>
+		<SafeAreaView className="flex-1 bg-background" edges={["top"]}>
 			<View className="flex-1 flex-col justify-between">
 				<ScrollView className="p-4">
 					<H1 className="text-center mb-6">My Account</H1>

@@ -27,7 +27,6 @@
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="red-planner"/>
-        <data android:scheme="uk.co.redlaser"/>
         <data android:scheme="exp+redplanner"/>
       </intent-filter>
     </activity>

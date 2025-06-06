@@ -122,21 +122,23 @@ export default function TimeTracker() {
 	}, [userProfile]);
 
 	// Update elapsed time every second
-	useEffect(() => {
-		let intervalId: ReturnType<typeof setInterval>;
+	useFocusEffect(
+		useCallback(() => {
+			let intervalId: ReturnType<typeof setInterval>;
 
-		if (currentShift && currentShift.start_time) {
-			intervalId = setInterval(() => {
-				updateElapsedTime();
-			}, 1000);
-		}
-
-		return () => {
-			if (intervalId) {
-				clearInterval(intervalId);
+			if (currentShift && currentShift.start_time) {
+				intervalId = setInterval(() => {
+					updateElapsedTime();
+				}, 1000);
 			}
-		};
-	}, [currentShift]);
+
+			return () => {
+				if (intervalId) {
+					clearInterval(intervalId);
+				}
+			};
+		}, [currentShift])
+	);
 
 	// Function to update elapsed time
 	const updateElapsedTime = () => {
