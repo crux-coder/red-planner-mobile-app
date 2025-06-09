@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useAppState } from "@/context/app-state-provider";
 import {
 	ActivityIndicator,
 	ScrollView,
@@ -165,12 +166,22 @@ export default function MonthlyTimesheet() {
 		}
 	}, [currentMonth, userProfile]);
 
-	// Initial fetch
+	// Get app state for background/foreground transitions
+	const { appState, lastActiveAt } = useAppState();
+
+	// Fetch timeblocks when component mounts and when month changes
 	useFocusEffect(
 		useCallback(() => {
 			fetchTimeBlocksForMonth();
-		}, [fetchTimeBlocksForMonth])
+		}, [fetchTimeBlocksForMonth]),
 	);
+
+	// Refresh data when app comes back from background
+	useEffect(() => {
+		if (appState === 'active' && lastActiveAt) {
+			fetchTimeBlocksForMonth();
+		}
+	}, [appState, lastActiveAt, fetchTimeBlocksForMonth]);
 
 	// Sync week view with selected date, but only when explicitly changing the date
 	// This prevents the circular dependency that was causing the date to revert

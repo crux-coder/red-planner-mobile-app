@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { View, Alert, Button } from "react-native";
+import { useAppState } from "@/context/app-state-provider";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/text";
 import { CurrentShiftCard } from "@/app/components/timesheet/CurrentShiftCard";
@@ -13,10 +14,8 @@ import { useSupabase } from "@/context/supabase-provider";
 import { format } from "date-fns";
 import { supabase } from "@/config/supabase";
 import { toLocalTimestamp } from "@/lib/utils";
-import { useRouter } from "expo-router";
 import { Job, TimeBlock } from "@/app/models/types";
 import { useTimeTracker, ActionType } from "@/app/hooks/useTimeTracker";
-import { captureException } from "@sentry/react-native";
 
 export default function TimeTracker() {
 	const [currentShift, setCurrentShift] = useState<TimeBlock | null>(null);
@@ -35,19 +34,18 @@ export default function TimeTracker() {
 	// State for TimeBlockEditDialog
 	const [showEditDialog, setShowEditDialog] = useState(false);
 	const [shiftToEdit, setShiftToEdit] = useState<TimeBlock | null>(null);
-	const [isUpdating, setIsUpdating] = useState(false); // For edit dialog loading state
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
 	const { userProfile } = useSupabase();
-	const router = useRouter();
 
 	// Function to fetch the current active shift
 	const fetchCurrentShift = useCallback(async () => {
+		console.log("Fetching current shift for user:", userProfile?.id);
 		if (!userProfile) return;
 
 		try {
 			setLoading(true);
-
+			console.log("Fetching current shift for user:", userProfile.id);
 			// Query for the most recent shift that doesn't have an end time
 			const { data, error } = await supabase
 				.from("time_blocks")
@@ -57,7 +55,7 @@ export default function TimeTracker() {
 				.order("start_time", { ascending: false })
 				.limit(1)
 				.single();
-
+			console.log("Current shift:", data);
 			if (error && error.code !== "PGRST116") {
 				// PGRST116 is the error code for no rows returned
 				console.error("Error fetching current shift:", error);
@@ -74,10 +72,12 @@ export default function TimeTracker() {
 
 	// Function to fetch jobs assigned to the current user for today
 	const fetchUserJobs = useCallback(async () => {
+		console.log("Fetching user jobs for user:", userProfile?.id);
 		if (!userProfile) return;
 
 		try {
 			setLoadingJobs(true);
+			console.log("Fetching user jobs for user:", userProfile.id);
 
 			// Get current date in YYYY-MM-DD format
 			const now = new Date();
@@ -109,6 +109,7 @@ export default function TimeTracker() {
 				.gte("end_date", todayStart)
 				.order("start_date", { ascending: true });
 
+			console.log("User jobs:", data);
 			if (error) {
 				console.error("Error fetching jobs:", error);
 				return;
@@ -292,6 +293,9 @@ export default function TimeTracker() {
 		onFetchCurrentShift: fetchCurrentShift,
 	});
 
+	// Get app state for background/foreground transitions
+	const { appState, lastActiveAt } = useAppState();
+
 	// Pull fresh data every time the screen is focused
 	useFocusEffect(
 		useCallback(() => {
@@ -299,6 +303,14 @@ export default function TimeTracker() {
 			fetchUserJobs();
 		}, [fetchCurrentShift, fetchUserJobs]),
 	);
+
+	// Refresh data when app comes back from background
+	useEffect(() => {
+		if (appState === "active" && lastActiveAt) {
+			fetchCurrentShift();
+			fetchUserJobs();
+		}
+	}, [appState, lastActiveAt, fetchCurrentShift, fetchUserJobs]);
 
 	// Format the start time for display
 	const formatStartTime = (startTime: string) => {
@@ -323,8 +335,6 @@ export default function TimeTracker() {
 		if (!shiftToEdit || !userProfile) return;
 
 		try {
-			setIsUpdating(true);
-
 			// Update the time block in the database
 			const { data, error } = await supabase
 				.from("time_blocks")
@@ -352,7 +362,6 @@ export default function TimeTracker() {
 			console.error("Error:", error);
 			Alert.alert("Error", "An unexpected error occurred");
 		} finally {
-			setIsUpdating(false);
 			setShowEditDialog(false);
 			setShiftToEdit(null);
 		}
@@ -368,12 +377,6 @@ export default function TimeTracker() {
 						</Text>
 					</View>
 				</View>
-				<Button
-					title="Try!"
-					onPress={() => {
-						captureException(new Error("First error"));
-					}}
-				/>
 				{/* Current Shift Card */}
 				<View className="p-2 pb-0">
 					<CurrentShiftCard

@@ -162,7 +162,7 @@ export const SupabaseProvider = ({ children }: SupabaseProviderProps) => {
 					const authUser = session ? session.user : null;
 					setUser(authUser);
 
-					await updateUserProfile(authUser);
+					updateUserProfile(authUser);
 				});
 
 				await new Promise((resolve) => setTimeout(resolve, 100));

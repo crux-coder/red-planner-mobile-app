@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useAppState } from "@/context/app-state-provider";
 import {
 	View,
 	ScrollView,
@@ -88,6 +89,9 @@ export default function Home() {
 		}
 	};
 
+	// Get app state for background/foreground transitions
+	const { appState, lastActiveAt } = useAppState();
+
 	// Initial data loading
 	useFocusEffect(
 		useCallback(() => {
@@ -163,6 +167,23 @@ export default function Home() {
 		},
 		[formatDateKey, userProfile?.id],
 	);
+
+	// Refresh data when app comes back from background
+	useEffect(() => {
+		if (appState === 'active' && lastActiveAt) {
+			// Fetch data for the current date
+			fetchJobsForDate(currentDate);
+			
+			// Scroll to current time if viewing today
+			const todayKey = formatDateKey(new Date());
+			const currentDateKey = formatDateKey(currentDate);
+			if (currentDateKey === todayKey) {
+				setTimeout(() => {
+					scrollToCurrentTime();
+				}, 300);
+			}
+		}
+	}, [appState, lastActiveAt, currentDate, fetchJobsForDate, formatDateKey, scrollToCurrentTime]);
 
 	// Function to navigate to previous day
 	const goToPreviousDay = useCallback(() => {
