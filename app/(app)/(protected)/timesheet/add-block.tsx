@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
 	View,
 	Text,
@@ -14,17 +14,19 @@ import { useColorScheme } from "nativewind";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { format } from "date-fns";
-import { router, useNavigation } from "expo-router";
+import { router, useNavigation, useLocalSearchParams } from "expo-router";
 import { supabase } from "@/config/supabase";
 import { useSupabase } from "@/context/supabase-provider";
 import { toLocalTimestamp } from "@/lib/utils";
 import { Picker } from "@react-native-picker/picker";
 
-export default function AddTimeBlockSheet() {
+export default function TimeBlockSheet() {
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
 	const navigation = useNavigation();
 	const { userProfile } = useSupabase();
+	const params = useLocalSearchParams();
+	const timeBlockId = params.id as string;
 
 	// State for form fields
 	const [startDate, setStartDate] = useState(new Date());
@@ -35,9 +37,72 @@ export default function AddTimeBlockSheet() {
 	const [coefficientText, setCoefficientText] = useState("1.00");
 	const [notes, setNotes] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [isEditing, setIsEditing] = useState(false);
+	const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+	const [reviewedById, setReviewedById] = useState<string | null>(null);
+	const [reviewedAt, setReviewedAt] = useState<string | null>(null);
+	const [reviewer, setReviewer] = useState<any>(null);
 
 	// We don't need picker visibility state anymore since they're always visible
 	const [pickerType, setPickerType] = useState<"start" | "end">("start");
+
+	// Fetch time block data if editing
+	useEffect(() => {
+		const fetchTimeBlock = async () => {
+			if (!timeBlockId) return;
+
+			try {
+				setLoading(true);
+				setIsEditing(true);
+
+				const { data, error } = await supabase
+					.from("time_blocks")
+					.select("*")
+					.eq("id", timeBlockId)
+					.single();
+				console.log(data);
+				if (error) {
+					console.error("Error fetching time block:", error);
+					Alert.alert("Error", "Failed to load time block data");
+					router.back();
+					return;
+				}
+
+				// Update form fields with time block data
+				setStartDate(new Date(data.start_time));
+				if (data.end_time) {
+					setEndDate(new Date(data.end_time));
+				}
+				setCategory(data.category || "shift");
+				setCoefficient(data.coefficient || 1);
+				setCoefficientText((data.coefficient || 1).toFixed(2));
+				setNotes(data.notes || "");
+				setRejectionReason(data.rejection_reason || null);
+				setReviewedById(data.reviewed_by_id || null);
+				setReviewedAt(data.reviewed_at || null);
+
+				// Fetch reviewer information if available
+				if (data.reviewed_by_id) {
+					const { data: reviewerData, error: reviewerError } = await supabase
+						.from("users")
+						.select("first_name, last_name")
+						.eq("id", data.reviewed_by_id)
+						.single();
+
+					if (!reviewerError) {
+						setReviewer(reviewerData);
+					}
+				}
+			} catch (error) {
+				console.error("Error:", error);
+				Alert.alert("Error", "An unexpected error occurred");
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchTimeBlock();
+	}, [timeBlockId]);
 
 	// Handle category selection
 	const handleCategoryChange = (newCategory: string) => {
@@ -117,24 +182,46 @@ export default function AddTimeBlockSheet() {
 		try {
 			setLoading(true);
 
-			const { data, error } = await supabase
-				.from("time_blocks")
-				.insert({
-					worker_id: userProfile.id,
-					start_time: toLocalTimestamp(startDate),
-					end_time: toLocalTimestamp(endDate),
-					category,
-					coefficient,
-					notes: notes || null,
-					status: "pending", // Default status for new timeblocks
-				})
-				.select()
-				.single();
+			if (isEditing && timeBlockId) {
+				// Update existing time block
+				const { error } = await supabase
+					.from("time_blocks")
+					.update({
+						start_time: toLocalTimestamp(startDate),
+						end_time: toLocalTimestamp(endDate),
+						category,
+						coefficient,
+						notes: notes || null,
+						// Don't change status when editing
+					})
+					.eq("id", timeBlockId);
 
-			if (error) {
-				console.error("Error saving timeblock:", error);
-				Alert.alert("Error", "Failed to save timeblock. Please try again.");
-				return;
+				if (error) {
+					console.error("Error updating timeblock:", error);
+					Alert.alert("Error", "Failed to update timeblock. Please try again.");
+					return;
+				}
+			} else {
+				// Create new time block
+				const { data, error } = await supabase
+					.from("time_blocks")
+					.insert({
+						worker_id: userProfile.id,
+						start_time: toLocalTimestamp(startDate),
+						end_time: toLocalTimestamp(endDate),
+						category,
+						coefficient,
+						notes: notes || null,
+						status: "pending", // Default status for new timeblocks
+					})
+					.select()
+					.single();
+
+				if (error) {
+					console.error("Error saving timeblock:", error);
+					Alert.alert("Error", "Failed to save timeblock. Please try again.");
+					return;
+				}
 			}
 
 			// Success - go back to timesheet
@@ -208,6 +295,12 @@ export default function AddTimeBlockSheet() {
 			</View>
 
 			<ScrollView className="flex-1 p-4">
+				{/* Page Title */}
+				<View className="mb-6">
+					<Text className="text-2xl font-bold dark:text-white">
+						{isEditing ? "Edit Time Block" : "Add Time Block"}
+					</Text>
+				</View>
 				{/* Time Values Display Section */}
 
 				{/* Date/Time Pickers at the top */}
@@ -389,6 +482,44 @@ export default function AddTimeBlockSheet() {
 							}}
 						/>
 					</View>
+				</View>
+
+				{/* Rejection information if available */}
+				{rejectionReason && (
+					<View className="mt-4 p-3 border border-red-300 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-900/20 mb-6">
+						<Text className="text-red-700 dark:text-red-400 font-medium mb-1">
+							Rejection Reason
+						</Text>
+						<Text className="text-red-600 dark:text-red-300 mb-2">
+							{rejectionReason}
+						</Text>
+						{reviewer && reviewedAt && (
+							<Text className="text-zinc-500 dark:text-zinc-400 text-sm">
+								Reviewed by {reviewer.first_name} {reviewer.last_name} on{" "}
+								{format(new Date(reviewedAt), "MMM d, yyyy h:mm a")}
+							</Text>
+						)}
+					</View>
+				)}
+
+				{/* Action Buttons */}
+				<View className="flex-row justify-end space-x-4 mt-4 mb-8">
+					<TouchableOpacity
+						onPress={() => router.back()}
+						className="py-3 px-6 rounded-lg bg-zinc-100 dark:bg-zinc-800"
+					>
+						<Text className="text-zinc-900 dark:text-zinc-100 font-medium">
+							Cancel
+						</Text>
+					</TouchableOpacity>
+					<TouchableOpacity
+						onPress={handleSave}
+						className="py-3 px-6 rounded-lg bg-blue-500"
+					>
+						<Text className="text-white font-medium">
+							{isEditing ? "Update" : "Save"}
+						</Text>
+					</TouchableOpacity>
 				</View>
 			</ScrollView>
 

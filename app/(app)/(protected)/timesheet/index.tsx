@@ -31,7 +31,7 @@ import {
 	setYear,
 } from "date-fns";
 import { useRouter, useFocusEffect, router } from "expo-router";
-import { TimeBlockEditDialog } from "@/app/components/timesheet/TimeBlockEditDialog";
+// TimeBlockEditDialog is no longer used - using add-block.tsx with id parameter instead
 import { toLocalTimestamp } from "@/lib/utils";
 import { TimeBlock } from "@/app/models/types";
 
@@ -76,7 +76,6 @@ export default function MonthlyTimesheet() {
 	const [groupedTimeBlocks, setGroupedTimeBlocks] = useState<GroupedTimeBlocks>(
 		{},
 	);
-	const [editDialogVisible, setEditDialogVisible] = useState(false);
 	const [editingTimeBlock, setEditingTimeBlock] = useState<TimeBlock | null>(
 		null,
 	);
@@ -178,7 +177,7 @@ export default function MonthlyTimesheet() {
 
 	// Refresh data when app comes back from background
 	useEffect(() => {
-		if (appState === 'active' && lastActiveAt) {
+		if (appState === "active" && lastActiveAt) {
 			fetchTimeBlocksForMonth();
 		}
 	}, [appState, lastActiveAt, fetchTimeBlocksForMonth]);
@@ -354,36 +353,8 @@ export default function MonthlyTimesheet() {
 
 	// Handle editing a timeblock
 	const handleEditTimeBlock = (timeBlock: TimeBlock) => {
-		setEditingTimeBlock(timeBlock);
-		setEditDialogVisible(true);
-	};
-
-	// Save edited timeblock
-	const handleSaveTimeBlock = async (
-		start: Date,
-		end: Date | null,
-		coefficient: number,
-		category: string,
-	) => {
-		if (!editingTimeBlock) return;
-
-		try {
-			await supabase
-				.from("time_blocks")
-				.update({
-					start_time: toLocalTimestamp(start),
-					end_time: end ? toLocalTimestamp(end) : null,
-					coefficient,
-					category: category as "shift" | "overtime" | "break",
-				})
-				.eq("id", editingTimeBlock.id);
-
-			setEditDialogVisible(false);
-			setEditingTimeBlock(null);
-			await fetchTimeBlocksForMonth();
-		} catch (error) {
-			console.error("Error updating timeblock:", error);
-		}
+		// Navigate to add-block with the timeblock id as a parameter
+		router.push(`/timesheet/add-block?id=${timeBlock.id}`);
 	};
 
 	// Get category color
@@ -663,25 +634,7 @@ export default function MonthlyTimesheet() {
 				<Ionicons name="add" size={24} color="white" />
 			</TouchableOpacity>
 
-			{/* Edit dialog */}
-			{editingTimeBlock && (
-				<TimeBlockEditDialog
-					visible={editDialogVisible}
-					onClose={() => {
-						setEditDialogVisible(false);
-						setEditingTimeBlock(null);
-					}}
-					onSave={handleSaveTimeBlock}
-					initialStart={editingTimeBlock.start_time}
-					initialEnd={editingTimeBlock.end_time}
-					category={editingTimeBlock.category}
-					initialCoefficient={editingTimeBlock.coefficient}
-					initialNotes={editingTimeBlock.notes || ""}
-					rejectionReason={editingTimeBlock.rejection_reason || null}
-					reviewedById={editingTimeBlock.reviewed_by_id || null}
-					reviewedAt={editingTimeBlock.reviewed_at || null}
-				/>
-			)}
+			{/* Edit dialog removed - using add-block.tsx with id parameter instead */}
 		</SafeAreaView>
 	);
 }
