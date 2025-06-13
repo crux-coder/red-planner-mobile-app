@@ -79,18 +79,21 @@ export const JobDateTime: React.FC<JobDateTimeProps> = ({
 				<H4 className="ml-2">Date and Time</H4>
 			</View>
 			<View className="bg-card p-4 rounded-lg mb-4">
-				<View className="mb-4">
-					<Text className="text-muted-foreground mb-1">Date</Text>
-					<Text className="text-lg font-medium">{formatDate(startDate)}</Text>
-				</View>
-				<View className="flex-row">
-					<View className="flex-1 mr-4">
-						<Text className="text-muted-foreground mb-1">Start Time</Text>
-						<Text className="text-lg font-medium">{formatTime(startDate)}</Text>
-					</View>
+				{/* Combined date and time in a more compact layout */}
+				<View className="flex-row items-center justify-between">
 					<View className="flex-1">
-						<Text className="text-muted-foreground mb-1">End Time</Text>
-						<Text className="text-lg font-medium">{formatTime(endDate)}</Text>
+						<Text className="text-muted-foreground mb-1">Date</Text>
+						<Text className="text-lg font-medium">{formatDate(startDate)}</Text>
+					</View>
+					<View className="flex-row flex-1">
+						<View className="flex-1 mr-2">
+							<Text className="text-muted-foreground mb-1">Start</Text>
+							<Text className="text-lg font-medium">{formatTime(startDate)}</Text>
+						</View>
+						<View className="flex-1">
+							<Text className="text-muted-foreground mb-1">End</Text>
+							<Text className="text-lg font-medium">{formatTime(endDate)}</Text>
+						</View>
 					</View>
 				</View>
 			</View>

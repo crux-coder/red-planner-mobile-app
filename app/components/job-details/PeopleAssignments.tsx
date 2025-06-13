@@ -11,13 +11,14 @@ import { Text } from "@/components/ui/text";
 import { H4 } from "@/components/ui/typography";
 import { colors } from "@/constants/colors";
 import { useColorScheme } from "@/lib/useColorScheme";
-import { UserProfile } from "@/app/(app)/(protected)/schedule/index";
+import { UserProfile } from "@/app/models/types";
 import { useSupabase } from "@/context/supabase-provider";
 import { Ionicons } from "@expo/vector-icons";
 
 interface PeopleAssignmentItem {
 	id: string;
 	user: UserProfile;
+	is_lead?: boolean;
 }
 
 interface PeopleAssignmentsProps {
@@ -30,6 +31,9 @@ export const PeopleAssignments: React.FC<PeopleAssignmentsProps> = ({
 	const { colorScheme } = useColorScheme();
 	const { userProfile } = useSupabase();
 	const isDark = colorScheme === "dark";
+
+	// Assume the first person in the list is the lead if assignments exist
+	const leadId = assignments.length > 0 ? assignments[0].user.id : null;
 
 	// Generate initials from name
 	const getInitials = (firstName: string = "", lastName: string = "") => {
@@ -49,11 +53,11 @@ export const PeopleAssignments: React.FC<PeopleAssignmentsProps> = ({
 				<H4 className="ml-2">People</H4>
 			</View>
 			{assignments.length > 0 ? (
-				<View className="bg-card p-4 rounded-lg mb-2">
+				<View className="flex flex-col bg-card p-4 rounded-lg mb-2 gap-2">
 					{assignments.map((assignment) => (
 						<View
 							key={assignment.id}
-							className="flex-row items-center mb-3 last:mb-0"
+							className="flex-row items-center mb-2 last:mb-0"
 						>
 							{assignment.user.photo ? (
 								<Image
@@ -75,6 +79,14 @@ export const PeopleAssignments: React.FC<PeopleAssignmentsProps> = ({
 									<Text className="font-medium">
 										{assignment.user.first_name} {assignment.user.last_name}
 									</Text>
+									{assignment.user.id === leadId && (
+										<MaterialIcons
+											name="stars"
+											size={16}
+											color="#FFD700"
+											style={{ marginLeft: 4 }}
+										/>
+									)}
 									{userProfile?.id === assignment.user.id && (
 										<Text className="font-semibold text-muted-foreground ml-2">
 											(You)
