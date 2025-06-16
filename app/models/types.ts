@@ -90,6 +90,16 @@ export interface TimeBlock {
 		job_number: string;
 	};
 	rejection_reason: string | null;
-	reviewed_by_id: string | null;
-	reviewed_at: string | null;
+}
+
+// Define the JobUpdate interface
+export interface JobUpdate {
+  id: string;
+  job_id: string;
+  project_id: string;
+  author_id: string;
+  message: string;
+  created_at: string;
+  updated_at: string;
+  author?: UserProfile;
 }

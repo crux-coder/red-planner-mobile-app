@@ -19,12 +19,13 @@ import { useSupabase } from "@/context/supabase-provider";
 
 // Import components
 import JobHeader from "@/app/components/job-details/JobHeader";
-import JobDateTime from "@/app/components/job-details/JobDateTime";
+import JobTimeInfo from "@/app/components/job-details/JobTimeInfo";
 import PeopleAssignments from "@/app/components/job-details/PeopleAssignments";
 import EquipmentAssignments from "@/app/components/job-details/EquipmentAssignments";
 import TransportationAssignments from "@/app/components/job-details/TransportationAssignments";
 import JobNotes from "@/app/components/job-details/JobNotes";
 import JobActions from "@/app/components/job-details/JobActions";
+import JobUpdates from "@/app/components/job-details/JobUpdates";
 import Separator from "@/app/components/common/Separator";
 import { toLocalTimestamp } from "@/lib/utils";
 
@@ -37,6 +38,7 @@ export default function JobDetailScreen({ source }: JobDetailScreenProps) {
 	const [job, setJob] = useState<Job | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [updatingStatus, setUpdatingStatus] = useState(false);
+	const [activeTab, setActiveTab] = useState<"details" | "updates">("details");
 	const router = useRouter();
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
@@ -192,13 +194,13 @@ export default function JobDetailScreen({ source }: JobDetailScreenProps) {
 				.from("time_blocks")
 				.insert({
 					worker_id: userProfile.id,
-					category: "job",
+					category: "shift",
 					type: "job",
 					coefficient: 1, // Regular pay rate
 					start_time: nowFormatted,
 					end_time: null,
 					notes: `Working on job #${job.job_number}`,
-					related_job_id: job.id,
+					job_id: job.id,
 				})
 				.select()
 				.single();
@@ -332,48 +334,131 @@ export default function JobDetailScreen({ source }: JobDetailScreenProps) {
 					/>
 				</View>
 			) : job ? (
-				<ScrollView style={{ flex: 1, flexGrow: 1 }}>
-					<View className="p-2">
-						{/* Job Header */}
-						<JobHeader job={job} />
-						{/* Date and Time */}
-						<JobDateTime startDate={job.start_date} endDate={job.end_date} />
-
-						<Separator />
-
-						{/* Assigned People */}
-						<PeopleAssignments assignments={job.people_assignments || []} />
-
-						<Separator />
-
-						{/* Assigned Equipment */}
-						<EquipmentAssignments
-							assignments={job.equipment_assignments || []}
-						/>
-
-						<Separator />
-
-						{/* Assigned Transportation */}
-						<TransportationAssignments
-							assignments={job.transportation_assignments || []}
-						/>
-
-						<Separator />
-
-						{/* Notes */}
-						<JobNotes notes={job.notes} />
-
-						<Separator />
-
-						{/* Action buttons */}
-						<JobActions
-							status={job.job_status}
-							updatingStatus={updatingStatus}
-							onStartJob={handleStartJob}
-							onCompleteJob={handleCompleteJob}
-						/>
+				<View style={{ flex: 1 }}>
+					{/* Tab Navigation */}
+					<View
+						className="flex-row border-b mb-2"
+						style={{
+							borderBottomColor: isDark
+								? colors.dark.border
+								: colors.light.border,
+						}}
+					>
+						<TouchableOpacity
+							className={`flex-1 py-3 items-center ${activeTab === "details" ? "border-b-2" : ""}`}
+							style={{
+								borderBottomColor:
+									activeTab === "details"
+										? isDark
+											? colors.dark.primary
+											: colors.light.primary
+										: "transparent",
+							}}
+							onPress={() => setActiveTab("details")}
+						>
+							<Text
+								className={activeTab === "details" ? "font-semibold" : ""}
+								style={{
+									color:
+										activeTab === "details"
+											? isDark
+												? colors.dark.primary
+												: colors.light.primary
+											: isDark
+												? colors.dark.foreground
+												: colors.light.foreground,
+								}}
+							>
+								Details
+							</Text>
+						</TouchableOpacity>
+						<TouchableOpacity
+							className={`flex-1 py-3 items-center ${activeTab === "updates" ? "border-b-2" : ""}`}
+							style={{
+								borderBottomColor:
+									activeTab === "updates"
+										? isDark
+											? colors.dark.primary
+											: colors.light.primary
+										: "transparent",
+							}}
+							onPress={() => setActiveTab("updates")}
+						>
+							<Text
+								className={activeTab === "updates" ? "font-semibold" : ""}
+								style={{
+									color:
+										activeTab === "updates"
+											? isDark
+												? colors.dark.primary
+												: colors.light.primary
+											: isDark
+												? colors.dark.foreground
+												: colors.light.foreground,
+								}}
+							>
+								Updates
+							</Text>
+						</TouchableOpacity>
 					</View>
-				</ScrollView>
+
+					{/* Tab Content */}
+					{activeTab === "details" ? (
+						<ScrollView style={{ flex: 1, flexGrow: 1 }}>
+							<View className="p-2">
+								{/* Job Header */}
+								<JobHeader job={job} />
+								{/* Time Information */}
+								<JobTimeInfo
+									jobId={job.id}
+									startDate={job.start_date}
+									endDate={job.end_date}
+								/>
+
+								<Separator />
+
+								{/* Assigned People */}
+								<PeopleAssignments assignments={job.people_assignments || []} />
+
+								<Separator />
+
+								{/* Assigned Equipment */}
+								<EquipmentAssignments
+									assignments={job.equipment_assignments || []}
+								/>
+
+								<Separator />
+
+								{/* Assigned Transportation */}
+								<TransportationAssignments
+									assignments={job.transportation_assignments || []}
+								/>
+
+								<Separator />
+
+								{/* Notes */}
+								<JobNotes notes={job.notes} />
+
+								<Separator />
+
+								{/* Action buttons */}
+								<JobActions
+									status={job.job_status}
+									updatingStatus={updatingStatus}
+									onStartJob={handleStartJob}
+									onCompleteJob={handleCompleteJob}
+								/>
+							</View>
+						</ScrollView>
+					) : (
+						<View style={{ flex: 1, padding: 8 }}>
+							<JobUpdates
+								jobId={job.id}
+								projectId={job.job_project?.id || ""}
+							/>
+						</View>
+					)}
+				</View>
 			) : (
 				<View className="flex-1 justify-center items-center">
 					<Text className="text-foreground">Job not found</Text>
