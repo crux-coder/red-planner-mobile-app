@@ -73,21 +73,21 @@ export default function JobDetailScreen({ source }: JobDetailScreenProps) {
 				.from("calendar_entries")
 				.select(
 					`
-          *,
-          job_project:projects(*),
-          people_assignments:job_people_assignments(
-            *,
-            user:users(*)
-          ),
-          equipment_assignments:job_equipment_assignments(
-            *,
-            equipment:equipment(*)
-          ),
-          transportation_assignments:job_transportation_assignments(
-            *,
-            transportation:transportation(*)
-          )
-        `,
+					*,
+					job_project:projects(*),
+					people_assignments:job_people_assignments(
+						*,
+						user:users(*)
+					),
+					equipment_assignments:job_equipment_assignments(
+						*,
+						equipment:equipment(*)
+					),
+					transportation_assignments:job_transportation_assignments(
+						*,
+						transportation:transportation(*)
+					)
+				`,
 				)
 				.eq("id", id)
 				.single();

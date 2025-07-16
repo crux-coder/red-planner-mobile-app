@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { supabase } from "@/config/supabase";
 import { toLocalTimestamp } from "@/lib/utils";
 import { TimeBlock, UserProfile } from "@/app/models/types";
+import { useJobActions } from "./useJobActions";
 
 // Define TimeBlockType enum
 export type TimeBlockType = "shift" | "break" | "job" | "overtime" | "regular";
@@ -551,14 +552,22 @@ export const useTimeTracker = ({
 		onShiftChange(null);
 	};
 
+	// Use the job actions hook for completing jobs
+	const { completeJob } = useJobActions();
+
 	const handleCompleteJob = async () => {
 		if (!currentShift) return;
 
 		await endCurrentShift();
 
-		// Update job status to completed if job_id is present
+		// Use the job actions hook to complete the job if job_id is present
 		if (currentShift.job_id) {
-			await updateJobStatus(currentShift.job_id, "completed");
+			try {
+				await completeJob(currentShift.job_id);
+			} catch (error) {
+				console.error("Error completing job:", error);
+				throw error;
+			}
 		}
 
 		const newShift = await startNewShift("shift", "regular", 1);

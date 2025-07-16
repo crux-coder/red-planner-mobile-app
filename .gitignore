@@ -25,3 +25,5 @@ expo-env.d.ts
 .env.sentry-build-plugin
 *.keystore
 *.pem
+.kiro
+.vscode

@@ -5,6 +5,7 @@ import { View } from "react-native";
 
 import { SupabaseProvider, useSupabase } from "@/context/supabase-provider";
 import { AppStateProvider } from "@/context/app-state-provider";
+import { QueryProvider } from "@/app/providers/QueryProvider";
 import * as Sentry from "@sentry/react-native";
 
 Sentry.init({
@@ -39,9 +40,11 @@ function RootLayoutNav() {
 export default Sentry.wrap(function AppLayout() {
 	return (
 		<SupabaseProvider>
-			<AppStateProvider>
-				<RootLayoutNav />
-			</AppStateProvider>
+			<QueryProvider>
+				<AppStateProvider>
+					<RootLayoutNav />
+				</AppStateProvider>
+			</QueryProvider>
 		</SupabaseProvider>
 	);
 });

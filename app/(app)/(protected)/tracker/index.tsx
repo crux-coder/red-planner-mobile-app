@@ -11,11 +11,12 @@ import { CoefficientInputDialog } from "@/app/components/timesheet/CoefficientIn
 import { TimeBlockEditDialog } from "@/app/components/timesheet/TimeBlockEditDialog";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useSupabase } from "@/context/supabase-provider";
-import { format } from "date-fns";
 import { supabase } from "@/config/supabase";
+import { useTimeBlockActions } from "@/app/hooks/useTimeBlockActions";
 import { toLocalTimestamp } from "@/lib/utils";
 import { Job, TimeBlock } from "@/app/models/types";
 import { useTimeTracker, ActionType } from "@/app/hooks/useTimeTracker";
+import { format } from "date-fns";
 
 export default function TimeTracker() {
 	const [currentShift, setCurrentShift] = useState<TimeBlock | null>(null);
@@ -280,11 +281,6 @@ export default function TimeTracker() {
 		}
 	};
 
-	// Function to actually perform the action with the selected coefficient
-	// Import our custom hook
-	// Initialize the timeTracker hook
-	// We'll initialize the useTimeTracker hook after defining fetchCurrentShift
-
 	// Now we can initialize our useTimeTracker hook
 	const { performAction, processingAction, clockingOut } = useTimeTracker({
 		userProfile,
@@ -324,6 +320,9 @@ export default function TimeTracker() {
 		setShowEditDialog(true);
 	};
 
+	// Use the time block actions hook
+	const { editTimeBlock } = useTimeBlockActions();
+
 	// Handle saving edited shift
 	const handleSaveEditedShift = async (
 		start: Date,
@@ -332,35 +331,26 @@ export default function TimeTracker() {
 		category: string,
 		notes?: string,
 	) => {
+		console.log("Editing shift:", shiftToEdit);
 		if (!shiftToEdit || !userProfile) return;
 
 		try {
-			// Update the time block in the database
-			const { data, error } = await supabase
-				.from("time_blocks")
-				.update({
-					start_time: toLocalTimestamp(start),
-					end_time: end ? toLocalTimestamp(end) : null,
-					coefficient: coefficient,
-					category: category,
-					notes: notes || "",
-				})
-				.eq("id", shiftToEdit.id)
-				.select()
-				.single();
-
-			if (error) {
-				console.error("Error updating time block:", error);
-				Alert.alert("Error", "Failed to update time block");
-				return;
-			}
+			// Use the cloud function to update the time block
+			const updatedTimeBlock = await editTimeBlock(
+				shiftToEdit.id,
+				start,
+				end,
+				coefficient,
+				category,
+				notes,
+			);
 
 			// Update the current shift in state
-			setCurrentShift(data);
+			setCurrentShift(updatedTimeBlock);
 			Alert.alert("Success", "Time block updated successfully");
 		} catch (error) {
-			console.error("Error:", error);
-			Alert.alert("Error", "An unexpected error occurred");
+			console.error("Error updating time block:", error);
+			Alert.alert("Error", "Failed to update time block");
 		} finally {
 			setShowEditDialog(false);
 			setShiftToEdit(null);

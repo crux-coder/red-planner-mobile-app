@@ -6,7 +6,6 @@ import {
 	TouchableOpacity,
 	Alert,
 	Platform,
-	ActionSheetIOS,
 	TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,19 +13,19 @@ import { useColorScheme } from "nativewind";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { format } from "date-fns";
-import { router, useNavigation, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { supabase } from "@/config/supabase";
 import { useSupabase } from "@/context/supabase-provider";
 import { toLocalTimestamp } from "@/lib/utils";
-import { Picker } from "@react-native-picker/picker";
+import { useTimeBlockActions } from "@/app/hooks/useTimeBlockActions";
 
 export default function TimeBlockSheet() {
 	const { colorScheme } = useColorScheme();
 	const isDark = colorScheme === "dark";
-	const navigation = useNavigation();
 	const { userProfile } = useSupabase();
 	const params = useLocalSearchParams();
 	const timeBlockId = params.id as string;
+	const { editTimeBlock, isEditingTimeBlock } = useTimeBlockActions();
 
 	// State for form fields
 	const [startDate, setStartDate] = useState(new Date());
@@ -39,12 +38,8 @@ export default function TimeBlockSheet() {
 	const [loading, setLoading] = useState(false);
 	const [isEditing, setIsEditing] = useState(false);
 	const [rejectionReason, setRejectionReason] = useState<string | null>(null);
-	const [reviewedById, setReviewedById] = useState<string | null>(null);
 	const [reviewedAt, setReviewedAt] = useState<string | null>(null);
 	const [reviewer, setReviewer] = useState<any>(null);
-
-	// We don't need picker visibility state anymore since they're always visible
-	const [pickerType, setPickerType] = useState<"start" | "end">("start");
 
 	// Fetch time block data if editing
 	useEffect(() => {
@@ -55,12 +50,12 @@ export default function TimeBlockSheet() {
 				setLoading(true);
 				setIsEditing(true);
 
-				const { data, error } = await supabase
+				const { data: timeBlockData, error } = await supabase
 					.from("time_blocks")
 					.select("*")
 					.eq("id", timeBlockId)
 					.single();
-				console.log(data);
+				console.log(timeBlockData);
 				if (error) {
 					console.error("Error fetching time block:", error);
 					Alert.alert("Error", "Failed to load time block data");
@@ -69,24 +64,23 @@ export default function TimeBlockSheet() {
 				}
 
 				// Update form fields with time block data
-				setStartDate(new Date(data.start_time));
-				if (data.end_time) {
-					setEndDate(new Date(data.end_time));
+				setStartDate(new Date(timeBlockData.start_time));
+				if (timeBlockData.end_time) {
+					setEndDate(new Date(timeBlockData.end_time));
 				}
-				setCategory(data.category || "shift");
-				setCoefficient(data.coefficient || 1);
-				setCoefficientText((data.coefficient || 1).toFixed(2));
-				setNotes(data.notes || "");
-				setRejectionReason(data.rejection_reason || null);
-				setReviewedById(data.reviewed_by_id || null);
-				setReviewedAt(data.reviewed_at || null);
+				setCategory(timeBlockData.category || "shift");
+				setCoefficient(timeBlockData.coefficient || 1);
+				setCoefficientText((timeBlockData.coefficient || 1).toFixed(2));
+				setNotes(timeBlockData.notes || "");
+				setRejectionReason(timeBlockData.rejection_reason || null);
+				setReviewedAt(timeBlockData.reviewed_at || null);
 
 				// Fetch reviewer information if available
-				if (data.reviewed_by_id) {
+				if (timeBlockData.reviewed_by_id) {
 					const { data: reviewerData, error: reviewerError } = await supabase
 						.from("users")
 						.select("first_name, last_name")
-						.eq("id", data.reviewed_by_id)
+						.eq("id", timeBlockData.reviewed_by_id)
 						.single();
 
 					if (!reviewerError) {
@@ -180,30 +174,22 @@ export default function TimeBlockSheet() {
 		}
 
 		try {
-			setLoading(true);
-
 			if (isEditing && timeBlockId) {
-				// Update existing time block
-				const { error } = await supabase
-					.from("time_blocks")
-					.update({
-						start_time: toLocalTimestamp(startDate),
-						end_time: toLocalTimestamp(endDate),
-						category,
-						coefficient,
-						notes: notes || null,
-						// Don't change status when editing
-					})
-					.eq("id", timeBlockId);
-
-				if (error) {
-					console.error("Error updating timeblock:", error);
-					Alert.alert("Error", "Failed to update timeblock. Please try again.");
-					return;
-				}
+				// Update existing time block using cloud function
+				await editTimeBlock(
+					timeBlockId,
+					startDate,
+					endDate,
+					coefficient,
+					category,
+					notes
+				);
+				// Success - go back to timesheet (hook handles query invalidation)
+				router.back();
 			} else {
-				// Create new time block
-				const { data, error } = await supabase
+				// Create new time block (still using direct Supabase call)
+				setLoading(true);
+				const { data: newTimeBlock, error } = await supabase
 					.from("time_blocks")
 					.insert({
 						worker_id: userProfile.id,
@@ -222,15 +208,19 @@ export default function TimeBlockSheet() {
 					Alert.alert("Error", "Failed to save timeblock. Please try again.");
 					return;
 				}
+				setLoading(false);
+				// Success - go back to timesheet
+				router.back();
 			}
-
-			// Success - go back to timesheet
-			router.back();
 		} catch (error) {
-			console.error("Error:", error);
-			Alert.alert("Error", "An unexpected error occurred");
-		} finally {
-			setLoading(false);
+			// For editing, the hook handles error logging and display
+			if (isEditing) {
+				Alert.alert("Error", "Failed to update time block. Please try again.");
+			} else {
+				console.error("Error:", error);
+				Alert.alert("Error", "An unexpected error occurred");
+				setLoading(false);
+			}
 		}
 	};
 
@@ -248,30 +238,7 @@ export default function TimeBlockSheet() {
 		}
 	};
 
-	// Handle rate coefficient change with iOS action sheet
-	const showCoefficientPicker = () => {
-		if (Platform.OS === "ios") {
-			ActionSheetIOS.showActionSheetWithOptions(
-				{
-					options: ["Cancel", "Regular (x1)", "Overtime (x1.5)", "Double (x2)"],
-					cancelButtonIndex: 0,
-					title: "Select Rate Multiplier",
-				},
-				(buttonIndex) => {
-					if (buttonIndex === 0) {
-						// Cancel
-						return;
-					} else if (buttonIndex === 1) {
-						setCoefficient(1);
-					} else if (buttonIndex === 2) {
-						setCoefficient(1.5);
-					} else if (buttonIndex === 3) {
-						setCoefficient(2);
-					}
-				},
-			);
-		}
-	};
+
 
 	return (
 		<SafeAreaView className="flex-1 bg-white dark:bg-slate-900">
@@ -285,11 +252,11 @@ export default function TimeBlockSheet() {
 				</Text>
 				<TouchableOpacity
 					onPress={handleSave}
-					disabled={loading}
+					disabled={loading || isEditingTimeBlock}
 					className="p-2"
 				>
 					<Text className="text-blue-500 font-semibold">
-						{loading ? "Saving..." : "Save"}
+						{(loading || isEditingTimeBlock) ? "Saving..." : "Save"}
 					</Text>
 				</TouchableOpacity>
 			</View>
@@ -514,10 +481,11 @@ export default function TimeBlockSheet() {
 					</TouchableOpacity>
 					<TouchableOpacity
 						onPress={handleSave}
+						disabled={loading || isEditingTimeBlock}
 						className="py-3 px-6 rounded-lg bg-blue-500"
 					>
 						<Text className="text-white font-medium">
-							{isEditing ? "Update" : "Save"}
+							{(loading || isEditingTimeBlock) ? "Saving..." : (isEditing ? "Update" : "Save")}
 						</Text>
 					</TouchableOpacity>
 				</View>
