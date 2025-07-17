@@ -2,10 +2,9 @@ import React from "react";
 import { View, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
-import { JobStatus } from "@/app/(app)/(protected)/schedule/index";
 
 interface JobActionsProps {
-	status: JobStatus;
+	status: string;
 	updatingStatus: boolean;
 	onStartJob: () => void;
 	onCompleteJob: () => void;

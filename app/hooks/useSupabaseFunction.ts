@@ -35,8 +35,18 @@ export const useSupabaseFunction = <TParams = any, TResponse = any>(
 	return useMutation({
 		mutationFn: async (params?: TParams): Promise<TResponse> => {
 			try {
+				// Get the current session to include the auth token
+				const { data: sessionData } = await supabase.auth.getSession();
+				const authToken = sessionData?.session?.access_token;
+
+				// Invoke the function with the auth token in headers
 				const { data, error } = await supabase.functions.invoke(functionName, {
 					body: params || {},
+					headers: authToken
+						? {
+								Authorization: `Bearer ${authToken}`,
+							}
+						: undefined,
 				});
 
 				if (error) {
@@ -140,12 +150,55 @@ export interface EditTimeBlockParams {
  * @returns A mutation object from TanStack Query
  */
 export const useEditTimeBlock = (options?: SupabaseFunctionOptions) => {
-	return useSupabaseFunction<EditTimeBlockParams, { success: boolean, timeBlock: any }>(
-		"edit-time-block",
-		{
-			invalidateQueries: ["timeBlocks", "shifts", ...(options?.invalidateQueries || [])],
-			onSuccess: options?.onSuccess,
-			onError: options?.onError,
-		},
-	);
+	return useSupabaseFunction<
+		EditTimeBlockParams,
+		{ success: boolean; timeBlock: any }
+	>("edit-time-block", {
+		invalidateQueries: [
+			"timeBlocks",
+			"shifts",
+			...(options?.invalidateQueries || []),
+		],
+		onSuccess: options?.onSuccess,
+		onError: options?.onError,
+	});
+};
+
+/**
+ * Interface for job checklist data
+ */
+export interface JobChecklistData {
+	jobId: string;
+	checklistType: "start" | "end";
+	checklistData: {
+		// Start checklist items
+		scopeReviewed?: boolean | null;
+		siteWalkover?: boolean | null;
+		raUpdated?: boolean | null;
+		equipmentChecked?: boolean | null;
+		// End checklist items
+		equipmentCollected?: boolean | null;
+		dataDownloaded?: boolean | null;
+	};
+}
+
+/**
+ * Custom hook for the job-checklist cloud function
+ *
+ * @param options Additional options for the function call
+ * @returns A mutation object from TanStack Query
+ */
+export const useJobChecklist = (options?: SupabaseFunctionOptions) => {
+	return useSupabaseFunction<
+		JobChecklistData,
+		{ success: boolean; report: any }
+	>("job-checklist", {
+		invalidateQueries: [
+			"jobs",
+			"jobReports",
+			...(options?.invalidateQueries || []),
+		],
+		onSuccess: options?.onSuccess,
+		onError: options?.onError,
+	});
 };
