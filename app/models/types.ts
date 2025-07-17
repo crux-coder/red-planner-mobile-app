@@ -99,6 +99,7 @@ export interface JobUpdate {
   project_id: string;
   author_id: string;
   message: string;
+  image_urls?: string[];
   created_at: string;
   updated_at: string;
   author?: UserProfile;
