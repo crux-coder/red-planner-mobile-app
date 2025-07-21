@@ -103,6 +103,7 @@ export const JobChecklists: React.FC<JobChecklistsProps> = ({
 				.from("job_reports")
 				.select("checklist_data")
 				.eq("job_id", jobId)
+				.eq("type", activeChecklistType)
 				.order("created_at", { ascending: false })
 				.limit(1)
 				.maybeSingle();
