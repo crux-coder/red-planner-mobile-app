@@ -50,9 +50,14 @@ export const JobReport: React.FC<JobReportProps> = ({ jobId, projectId }) => {
 		saving,
 		saveReport,
 		fetchReportData,
+		initNewReport,
 	} = useJobReport(jobId, projectId);
 
 	const openReportModal = () => {
+		// Ensure we have default data to render when no report exists yet
+		if (!reportData) {
+			initNewReport();
+		}
 		setModalVisible(true);
 	};
 
@@ -276,7 +281,7 @@ export const JobReport: React.FC<JobReportProps> = ({ jobId, projectId }) => {
 							keyboardShouldPersistTaps="handled"
 						>
 							{/* Subcomponents for each section */}
-							{reportData && (
+							{reportData ? (
 								<>
 									<BasicInfoSection
 										reportData={reportData}
@@ -313,6 +318,11 @@ export const JobReport: React.FC<JobReportProps> = ({ jobId, projectId }) => {
 										setReportData={setReportData}
 									/>
 								</>
+							) : (
+								<View style={{ paddingVertical: 24, alignItems: "center" }}>
+									<ActivityIndicator size="small" />
+									<Text style={{ marginTop: 8 }}>Preparing report...</Text>
+								</View>
 							)}
 						</ScrollView>
 					</KeyboardAvoidingView>

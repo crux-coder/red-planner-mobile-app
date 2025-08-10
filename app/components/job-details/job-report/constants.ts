@@ -54,3 +54,10 @@ export const REPORTING_ISSUES_OPTIONS = [
 	"Incident",
 	"Near miss",
 ];
+
+// Storage bucket for job report attachments
+// Ensure this bucket exists in Supabase Storage and is set to public
+// if you want to use getPublicUrl links directly.
+// Note: This aligns with the previously used bucket name in the codebase
+// (e.g., legacy code referenced "job-reports").
+export const JOB_REPORT_FILES_BUCKET = "job-reports";

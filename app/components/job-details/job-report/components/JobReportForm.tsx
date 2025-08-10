@@ -4,7 +4,6 @@ import {
 	ScrollView,
 	ActivityIndicator,
 	TouchableOpacity,
-	Text as RNText,
 	Alert,
 } from "react-native";
 import { Text } from "@/components/ui/text";
@@ -20,6 +19,7 @@ import { SummaryCompletionSection } from "./SummaryCompletionSection";
 import { supabase } from "@/config/supabase";
 import * as FileSystem from "expo-file-system";
 import AttachmentsSection from "./AttachmentsSection";
+import { JOB_REPORT_FILES_BUCKET } from "../constants";
 
 export interface JobReportFormProps {
 	jobId: string;
@@ -95,13 +95,13 @@ export const JobReportForm: React.FC<JobReportFormProps> = ({
 
 				const fileName = `job-reports/${jobId}/${timestamp}-${i}.${ext}`;
 				const { data, error } = await supabase.storage
-					.from("job-reports")
+					.from(JOB_REPORT_FILES_BUCKET)
 					.upload(fileName, arrayBuffer, { contentType, upsert: true });
 
 				if (error) throw error;
 
 				const { data: publicUrlData } = supabase.storage
-					.from("job-reports")
+					.from(JOB_REPORT_FILES_BUCKET)
 					.getPublicUrl(fileName);
 				if (publicUrlData?.publicUrl) {
 					uploadedUrls.push(publicUrlData.publicUrl);
