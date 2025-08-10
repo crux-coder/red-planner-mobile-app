@@ -25,7 +25,8 @@ import EquipmentAssignments from "@/app/components/job-details/EquipmentAssignme
 import TransportationAssignments from "@/app/components/job-details/TransportationAssignments";
 import JobNotes from "@/app/components/job-details/JobNotes";
 import JobActions from "@/app/components/job-details/JobActions";
-import JobChecklists from "@/app/components/job-details/JobChecklists";
+import { JobChecklists } from "./JobChecklists";
+import { JobReport } from "./JobReport";
 import JobUpdates from "@/app/components/job-details/JobUpdates";
 import Separator from "@/app/components/common/Separator";
 import { toLocalTimestamp } from "@/lib/utils";
@@ -443,9 +444,13 @@ export default function JobDetailScreen({ source }: JobDetailScreenProps) {
 								<Separator />
 
 								{/* Job Checklists */}
-								<JobChecklists
+								<JobChecklists jobId={job.id} jobStatus={job.job_status} />
+								<Separator />
+
+								{/* Job Report */}
+								<JobReport
 									jobId={job.id}
-									jobStatus={job.job_status}
+									projectId={job.job_project?.id || ""}
 								/>
 								<Separator />
 								{/* Action buttons */}
@@ -455,7 +460,6 @@ export default function JobDetailScreen({ source }: JobDetailScreenProps) {
 									onStartJob={handleStartJob}
 									onCompleteJob={handleCompleteJob}
 								/>
-
 							</View>
 						</ScrollView>
 					) : (

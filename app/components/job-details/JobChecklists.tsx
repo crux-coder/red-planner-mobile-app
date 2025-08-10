@@ -100,7 +100,7 @@ export const JobChecklists: React.FC<JobChecklistsProps> = ({
 		try {
 			setLoading(true);
 			const { data, error } = await supabase
-				.from("job_reports")
+				.from("job_checklists")
 				.select("checklist_data")
 				.eq("job_id", jobId)
 				.eq("type", activeChecklistType)
@@ -212,12 +212,6 @@ export const JobChecklists: React.FC<JobChecklistsProps> = ({
 			</TouchableOpacity>
 		);
 	};
-
-	// Determine which checklists to show based on job status
-	const showStartChecklist =
-		jobStatus === "booked" || jobStatus === "in_progress";
-	const showEndChecklist = jobStatus === "in_progress";
-
 	const startItems = CHECKLIST_ITEMS.filter((item) => item.type === "start");
 	const endItems = CHECKLIST_ITEMS.filter((item) => item.type === "end");
 
@@ -233,10 +227,6 @@ export const JobChecklists: React.FC<JobChecklistsProps> = ({
 				</Text>
 			</View>
 		);
-	}
-
-	if (!showStartChecklist && !showEndChecklist) {
-		return null;
 	}
 
 	const getChecklistProgress = (items: ChecklistItem[]) => {
@@ -256,69 +246,62 @@ export const JobChecklists: React.FC<JobChecklistsProps> = ({
 				/>
 				<H4 className="ml-2">Checklists</H4>
 			</View>
-			{showStartChecklist && (
-				<TouchableOpacity
-					className="mb-3 p-4 rounded-lg flex-row items-center justify-between"
-					style={{
-						backgroundColor: isDark ? colors.dark.card : colors.light.card,
-						borderColor: isDark ? colors.dark.border : colors.light.border,
-						borderWidth: 1,
-					}}
-					onPress={() => openChecklist("start")}
-				>
-					<View className="flex-1">
-						<Text
-							className="text-lg font-semibold mb-1"
-							style={{
-								color: isDark
-									? colors.dark.foreground
-									: colors.light.foreground,
-							}}
-						>
-							Job Start Checklist
-						</Text>
-						<Text className="text-sm">
-							Progress: {getChecklistProgress(startItems)} completed
-						</Text>
-					</View>
-					<Ionicons name="chevron-forward" size={20} />
-				</TouchableOpacity>
-			)}
+			<TouchableOpacity
+				className="mb-3 p-4 rounded-lg flex-row items-center justify-between"
+				style={{
+					backgroundColor: isDark ? colors.dark.card : colors.light.card,
+					borderColor: isDark ? colors.dark.border : colors.light.border,
+					borderWidth: 1,
+				}}
+				onPress={() => openChecklist("start")}
+			>
+				<View className="flex-1">
+					<Text
+						className="text-lg font-semibold mb-1"
+						style={{
+							color: isDark ? colors.dark.foreground : colors.light.foreground,
+						}}
+					>
+						Job Start Checklist
+					</Text>
+					<Text className="text-sm">
+						Progress: {getChecklistProgress(startItems)} completed
+					</Text>
+				</View>
+				<Ionicons name="chevron-forward" size={20} />
+			</TouchableOpacity>
 
-			{showEndChecklist && (
-				<TouchableOpacity
-					className="mb-3 p-4 rounded-lg flex-row items-center justify-between"
-					style={{
-						backgroundColor: isDark ? colors.dark.card : colors.light.card,
-						borderColor: isDark ? colors.dark.border : colors.light.border,
-						borderWidth: 1,
-					}}
-					onPress={() => openChecklist("end")}
-				>
-					<View className="flex-1">
-						<Text
-							className="text-lg font-semibold mb-1"
-							style={{
-								color: isDark
-									? colors.dark.foreground
-									: colors.light.foreground,
-							}}
-						>
-							Job End Checklist
-						</Text>
-						<Text className="text-sm">
-							Progress: {getChecklistProgress(endItems)} completed
-						</Text>
-					</View>
-					<Ionicons name="chevron-forward" size={20} />
-				</TouchableOpacity>
-			)}
+			<TouchableOpacity
+				className="mb-3 p-4 rounded-lg flex-row items-center justify-between"
+				style={{
+					backgroundColor: isDark ? colors.dark.card : colors.light.card,
+					borderColor: isDark ? colors.dark.border : colors.light.border,
+					borderWidth: 1,
+				}}
+				onPress={() => openChecklist("end")}
+			>
+				<View className="flex-1">
+					<Text
+						className="text-lg font-semibold mb-1"
+						style={{
+							color: isDark ? colors.dark.foreground : colors.light.foreground,
+						}}
+					>
+						Job End Checklist
+					</Text>
+					<Text className="text-sm">
+						Progress: {getChecklistProgress(endItems)} completed
+					</Text>
+				</View>
+				<Ionicons name="chevron-forward" size={20} />
+			</TouchableOpacity>
 
 			{/* Checklist Modal */}
 			<Modal
 				visible={modalVisible}
 				animationType="slide"
 				presentationStyle="pageSheet"
+				onRequestClose={handleCancel}
 			>
 				<SafeAreaView
 					className="flex-1"
@@ -330,54 +313,62 @@ export const JobChecklists: React.FC<JobChecklistsProps> = ({
 				>
 					{/* Header */}
 					<View
-						className="flex-row items-center justify-between p-4 border-b"
+						className="p-4 border-b"
 						style={{
 							borderBottomColor: isDark
 								? colors.dark.border
 								: colors.light.border,
 						}}
 					>
-						<TouchableOpacity onPress={handleCancel}>
-							<Text
-								className="text-lg"
-								style={{
-									color: isDark ? colors.dark.primary : colors.light.primary,
-								}}
-							>
-								Cancel
-							</Text>
-						</TouchableOpacity>
-						<Text
-							className="text-lg font-semibold"
+						<View
 							style={{
-								color: isDark
-									? colors.dark.foreground
-									: colors.light.foreground,
+								position: "relative",
+								alignItems: "center",
+								justifyContent: "center",
+								minHeight: 28,
 							}}
 						>
-							{activeChecklistType === "start"
-								? "Job Start Checklist"
-								: "Job End Checklist"}
-						</Text>
-						<TouchableOpacity
-							onPress={handleSave}
-							disabled={jobChecklistMutation.isPending}
-						>
+							<TouchableOpacity onPress={handleCancel} style={{ position: "absolute", left: 0 }}>
+								<Text
+									className="text-lg"
+									style={{
+										color: isDark ? colors.dark.primary : colors.light.primary,
+									}}
+								>
+									Cancel
+								</Text>
+							</TouchableOpacity>
 							<Text
 								className="text-lg font-semibold"
 								style={{
-									color: jobChecklistMutation.isPending
-										? isDark
-											? colors.dark.muted
-											: colors.light.muted
-										: isDark
-											? colors.dark.primary
-											: colors.light.primary,
+									color: isDark
+										? colors.dark.foreground
+										: colors.light.foreground,
 								}}
 							>
-								{jobChecklistMutation.isPending ? "Saving..." : "Save"}
+								{activeChecklistType === "start" ? "Job Start Checklist" : "Job End Checklist"}
 							</Text>
-						</TouchableOpacity>
+							<TouchableOpacity
+								onPress={handleSave}
+								disabled={jobChecklistMutation.isPending}
+								style={{ position: "absolute", right: 0 }}
+							>
+								<Text
+									className="text-lg font-semibold"
+									style={{
+										color: jobChecklistMutation.isPending
+											? isDark
+												? colors.dark.muted
+												: colors.light.muted
+											: isDark
+												? colors.dark.primary
+												: colors.light.primary,
+									}}
+								>
+									{jobChecklistMutation.isPending ? "Saving..." : "Save"}
+								</Text>
+							</TouchableOpacity>
+						</View>
 					</View>
 
 					{/* Checklist Content */}
