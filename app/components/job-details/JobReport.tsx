@@ -102,7 +102,7 @@ export const JobReport: React.FC<JobReportProps> = ({ jobId, projectId }) => {
 				<H4 className="ml-2">Job Report</H4>
 			</View>
 
-			{reportData ? (
+			{reportData?.id ? (
 				<TouchableOpacity
 					className="mb-3 p-4 rounded-lg flex-row items-center justify-between"
 					style={{
@@ -113,16 +113,24 @@ export const JobReport: React.FC<JobReportProps> = ({ jobId, projectId }) => {
 					onPress={openReportModal}
 				>
 					<View className="flex-1">
-						<Text
-							className="text-lg font-semibold mb-1"
-							style={{
-								color: isDark
-									? colors.dark.foreground
-									: colors.light.foreground,
-							}}
-						>
-							Job Report
-						</Text>
+						<View className="flex-row items-center mb-1">
+							<Text
+								className="text-lg font-semibold"
+								style={{
+									color: isDark
+										? colors.dark.foreground
+										: colors.light.foreground,
+								}}
+							>
+								Job Report
+							</Text>
+							<Ionicons
+								name="checkmark-circle"
+								size={18}
+								color="#22c55e"
+								style={{ marginLeft: 6 }}
+							/>
+						</View>
 						<Text className="text-sm">
 							Created on:{" "}
 							{(reportData as JobReportRecord)?.created_at

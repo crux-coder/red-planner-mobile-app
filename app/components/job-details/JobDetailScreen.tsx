@@ -27,6 +27,7 @@ import JobNotes from "@/app/components/job-details/JobNotes";
 import JobActions from "@/app/components/job-details/JobActions";
 import { JobChecklists } from "./JobChecklists";
 import { JobReport } from "./JobReport";
+import { JobRiskAssessment } from "./JobRiskAssessment";
 import JobUpdates from "@/app/components/job-details/JobUpdates";
 import Separator from "@/app/components/common/Separator";
 import { toLocalTimestamp } from "@/lib/utils";
@@ -38,6 +39,9 @@ type JobDetailScreenProps = {
 export default function JobDetailScreen({ source }: JobDetailScreenProps) {
 	const { id } = useLocalSearchParams<{ id: string }>();
 	const [job, setJob] = useState<Job | null>(null);
+	const [signedByCurrentUser, setSignedByCurrentUser] =
+		useState<boolean>(false);
+	const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [updatingStatus, setUpdatingStatus] = useState(false);
 	const [activeTab, setActiveTab] = useState<"details" | "updates">("details");
@@ -88,7 +92,8 @@ export default function JobDetailScreen({ source }: JobDetailScreenProps) {
 					transportation_assignments:job_transportation_assignments(
 						*,
 						transportation:transportation(*)
-					)
+					),
+					risk_assessments_signatures(*)
 				`,
 				)
 				.eq("id", id)
@@ -98,8 +103,40 @@ export default function JobDetailScreen({ source }: JobDetailScreenProps) {
 				console.error("Error fetching job details:", error);
 				return;
 			}
-
+			console.log("Job details:", data);
 			setJob(data as Job);
+
+			// Determine if current user has an existing risk assessment signature in this entry
+			try {
+				const sigs = (data as any)?.risk_assessments_signatures as
+					| Array<{
+							id: string;
+							job_id: string;
+							risk_assessment_id: string;
+							user_id: string;
+							url: string | null;
+							created_at: string;
+					  }>
+					| undefined;
+				if (Array.isArray(sigs) && userProfile?.id) {
+					const mine = sigs
+						.filter((s) => s.user_id === userProfile.id)
+						.sort(
+							(a, b) =>
+								new Date(b.created_at).getTime() -
+								new Date(a.created_at).getTime(),
+						)[0];
+					setSignedByCurrentUser(!!mine);
+					setSignedPdfUrl(mine?.url ?? null);
+				} else {
+					setSignedByCurrentUser(false);
+					setSignedPdfUrl(null);
+				}
+			} catch (e) {
+				console.warn("Failed to compute risk assessment signature state:", e);
+				setSignedByCurrentUser(false);
+				setSignedPdfUrl(null);
+			}
 		} catch (error) {
 			console.error("Error:", error);
 		} finally {
@@ -451,6 +488,14 @@ export default function JobDetailScreen({ source }: JobDetailScreenProps) {
 								<JobReport
 									jobId={job.id}
 									projectId={job.job_project?.id || ""}
+								/>
+								<Separator />
+								{/* Risk Assessment */}
+								<JobRiskAssessment
+									projectId={job.job_project?.id || ""}
+									jobId={job.id}
+									signedByCurrentUser={signedByCurrentUser}
+									signedPdfUrl={signedPdfUrl}
 								/>
 								<Separator />
 								{/* Action buttons */}

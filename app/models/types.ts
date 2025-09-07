@@ -70,6 +70,18 @@ export interface Job {
 			type?: string;
 		};
 	}[];
+	// Optional: risk assessment signatures related to this job, when joined in queries
+	risk_assessments_signatures?: RiskAssessmentSignature[];
+}
+
+// Risk Assessment signature record
+export interface RiskAssessmentSignature {
+	id: string;
+	job_id: string;
+	risk_assessment_id: string;
+	user_id: string;
+	url: string | null;
+	created_at: string;
 }
 
 // Define the TimeBlock interface

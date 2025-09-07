@@ -67,6 +67,13 @@ export const JobChecklists: React.FC<JobChecklistsProps> = ({
 	const [checklistData, setChecklistData] = useState<
 		Record<string, boolean | null>
 	>({});
+	// Keep separate datasets for start and end to compute completion independently
+	const [startChecklistData, setStartChecklistData] = useState<
+		Record<string, boolean | null>
+	>({});
+	const [endChecklistData, setEndChecklistData] = useState<
+		Record<string, boolean | null>
+	>({});
 	const [tempChecklistData, setTempChecklistData] = useState<
 		Record<string, boolean | null>
 	>({});
@@ -84,6 +91,11 @@ export const JobChecklists: React.FC<JobChecklistsProps> = ({
 			setModalVisible(false);
 			// Update the main checklist data with saved changes
 			setChecklistData(tempChecklistData);
+			if (activeChecklistType === "start") {
+				setStartChecklistData(tempChecklistData);
+			} else {
+				setEndChecklistData(tempChecklistData);
+			}
 		},
 		onError: (error) => {
 			console.error("Error saving checklist:", error);
@@ -91,41 +103,55 @@ export const JobChecklists: React.FC<JobChecklistsProps> = ({
 		},
 	});
 
-	// Fetch existing checklist data
+	// Fetch existing checklist data for both start and end
 	useEffect(() => {
-		fetchChecklistData();
+		const fetchAll = async () => {
+			try {
+				setLoading(true);
+				const [{ data: startData, error: startErr }, { data: endData, error: endErr }] =
+					await Promise.all([
+						supabase
+							.from("job_checklists")
+							.select("checklist_data")
+							.eq("job_id", jobId)
+							.eq("type", "start")
+							.order("created_at", { ascending: false })
+							.limit(1)
+							.maybeSingle(),
+						supabase
+							.from("job_checklists")
+							.select("checklist_data")
+							.eq("job_id", jobId)
+							.eq("type", "end")
+							.order("created_at", { ascending: false })
+							.limit(1)
+							.maybeSingle(),
+					]);
+
+				if (startErr) console.error("Error fetching start checklist:", startErr);
+				if (endErr) console.error("Error fetching end checklist:", endErr);
+
+				if (startData?.checklist_data) {
+					setStartChecklistData(startData.checklist_data);
+					// Default base dataset to start for initial modal temp
+					setChecklistData(startData.checklist_data);
+				}
+				if (endData?.checklist_data) {
+					setEndChecklistData(endData.checklist_data);
+				}
+			} catch (error) {
+				console.error("Error:", error);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchAll();
 	}, [jobId]);
-
-	const fetchChecklistData = async () => {
-		try {
-			setLoading(true);
-			const { data, error } = await supabase
-				.from("job_checklists")
-				.select("checklist_data")
-				.eq("job_id", jobId)
-				.eq("type", activeChecklistType)
-				.order("created_at", { ascending: false })
-				.limit(1)
-				.maybeSingle();
-
-			if (error) {
-				console.error("Error fetching checklist data:", error);
-				return;
-			}
-
-			if (data?.checklist_data) {
-				setChecklistData(data.checklist_data);
-			}
-		} catch (error) {
-			console.error("Error:", error);
-		} finally {
-			setLoading(false);
-		}
-	};
 
 	const openChecklist = (type: "start" | "end") => {
 		setActiveChecklistType(type);
-		setTempChecklistData({ ...checklistData });
+		setTempChecklistData({ ...(type === "start" ? startChecklistData : endChecklistData) });
 		setModalVisible(true);
 	};
 
@@ -229,12 +255,13 @@ export const JobChecklists: React.FC<JobChecklistsProps> = ({
 		);
 	}
 
-	const getChecklistProgress = (items: ChecklistItem[]) => {
-		const completed = items.filter(
-			(item) => checklistData[item.key] === true,
-		).length;
+	const getChecklistProgress = (items: ChecklistItem[], data: Record<string, boolean | null>) => {
+		const completed = items.filter((item) => data[item.key] === true).length;
 		return `${completed}/${items.length}`;
 	};
+
+	const isChecklistComplete = (items: ChecklistItem[], data: Record<string, boolean | null>) =>
+		items.every((item) => data[item.key] === true);
 
 	return (
 		<View className="mb-4">
@@ -256,16 +283,21 @@ export const JobChecklists: React.FC<JobChecklistsProps> = ({
 				onPress={() => openChecklist("start")}
 			>
 				<View className="flex-1">
-					<Text
-						className="text-lg font-semibold mb-1"
-						style={{
-							color: isDark ? colors.dark.foreground : colors.light.foreground,
-						}}
-					>
-						Job Start Checklist
-					</Text>
+					<View className="flex-row items-center mb-1">
+						<Text
+							className="text-lg font-semibold"
+							style={{
+								color: isDark ? colors.dark.foreground : colors.light.foreground,
+							}}
+						>
+							Job Start Checklist
+						</Text>
+						{isChecklistComplete(startItems, startChecklistData) && (
+							<Ionicons name="checkmark-circle" size={18} color="#22c55e" style={{ marginLeft: 6 }} />
+						)}
+					</View>
 					<Text className="text-sm">
-						Progress: {getChecklistProgress(startItems)} completed
+						Progress: {getChecklistProgress(startItems, startChecklistData)} completed
 					</Text>
 				</View>
 				<Ionicons name="chevron-forward" size={20} />
@@ -281,16 +313,21 @@ export const JobChecklists: React.FC<JobChecklistsProps> = ({
 				onPress={() => openChecklist("end")}
 			>
 				<View className="flex-1">
-					<Text
-						className="text-lg font-semibold mb-1"
-						style={{
-							color: isDark ? colors.dark.foreground : colors.light.foreground,
-						}}
-					>
-						Job End Checklist
-					</Text>
+					<View className="flex-row items-center mb-1">
+						<Text
+							className="text-lg font-semibold"
+							style={{
+								color: isDark ? colors.dark.foreground : colors.light.foreground,
+							}}
+						>
+							Job End Checklist
+						</Text>
+						{isChecklistComplete(endItems, endChecklistData) && (
+							<Ionicons name="checkmark-circle" size={18} color="#22c55e" style={{ marginLeft: 6 }} />
+						)}
+					</View>
 					<Text className="text-sm">
-						Progress: {getChecklistProgress(endItems)} completed
+						Progress: {getChecklistProgress(endItems, endChecklistData)} completed
 					</Text>
 				</View>
 				<Ionicons name="chevron-forward" size={20} />
