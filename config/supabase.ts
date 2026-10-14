@@ -1,25 +1,22 @@
 import "react-native-url-polyfill/auto";
-
+import "./crypto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
-import { AppState } from "react-native";
+import { Platform } from "react-native";
 
-const supabaseUrl = process.env.EXPO_PUBLIC_API_URL as string;
-const supabaseKey = process.env.EXPO_PUBLIC_API_KEY as string;
+const url = process.env.EXPO_PUBLIC_API_URL;
+const key = process.env.EXPO_PUBLIC_API_KEY;
+if (!url || !key)
+	throw new Error(
+		"Set EXPO_PUBLIC_API_URL and EXPO_PUBLIC_API_KEY in .env before starting RedPlanner.",
+	);
 
-export const supabase = createClient(supabaseUrl, supabaseKey, {
+export const supabase = createClient(url, key, {
 	auth: {
-		storage: AsyncStorage,
+		...(Platform.OS !== "web" ? { storage: AsyncStorage } : {}),
 		autoRefreshToken: true,
 		persistSession: true,
 		detectSessionInUrl: false,
+		flowType: "pkce",
 	},
-});
-
-AppState.addEventListener("change", (state) => {
-	if (state === "active") {
-		supabase.auth.startAutoRefresh();
-	} else {
-		supabase.auth.stopAutoRefresh();
-	}
 });

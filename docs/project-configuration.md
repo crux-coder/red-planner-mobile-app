@@ -1,37 +1,44 @@
 # ⚙️ Project Configuration
 
-The project has been configured to use the following tools:
+## Running on an iPhone
 
-## ESLint
+This project uses Expo SDK 52 and requires a development build on a physical
+iPhone; the current Expo Go app does not support this SDK.
 
-ESLint is a linting tool for JavaScript. By providing specific configuration defined in the`.eslintrc.js` file it prevents developers from making silly mistakes in their code and enforces consistency in the codebase.
+1. Run `npm ci` to install JavaScript dependencies.
+2. Copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_URL` and
+   `EXPO_PUBLIC_API_KEY` for the intended Supabase project. Use a publishable or
+   legacy anon key, never a service-role or secret key. `.env` is gitignored.
+3. Sign in to your Apple account in Xcode → Settings → Accounts. The existing
+   Xcode project uses team `R5L8RZTV6R`; select your appropriate signing team if
+   that team is unavailable.
+4. Connect and unlock the iPhone, trust this Mac, and enable Developer Mode under
+   Settings → Privacy & Security on the phone.
+5. Run `npm run ios:device` and choose your iPhone. This compiles, signs, and
+   installs the app, then starts Metro. Accept Local Network access on the phone
+   if prompted, and keep it on the same network as the Mac.
 
-[ESLint Configuration Example Code](../.eslintrc.js)
+For later sessions, run `npm run start:device` and open RedPlanner on the phone.
+The development server must remain running while using this development build.
 
-## Prettier
+For an EAS cloud build, use
+`npx eas-cli@latest build --platform ios --profile development-device`.
+This profile targets physical devices; the existing `development` profile still
+targets the simulator. EAS device builds require Apple Developer membership,
+device registration, signing credentials, and the same environment variables
+configured for the build.
 
-This is a great tool for formatting code. It enforces a consistent code style across your entire codebase. By utilizing the "format on save" feature in your IDE you can automatically format the code based on the configuration provided in the `.prettierrc` file. It will also give you good feedback when something is wrong with the code. If the auto-format doesn't work, something is wrong with the code.
+## Checks
 
-[Prettier Configuration Example Code](../.prettierrc)
+Run `npm run typecheck`, `npm run lint`, and `npm test`. Format with Prettier.
 
-## TypeScript
+Native dependency changes require `pod install` inside `ios/` and a new device build.
 
-ESLint is great for catching some of the bugs related to the language, but since JavaScript is a dynamic language ESLint cannot check data that run through the applications, which can lead to bugs, especially on larger projects. That is why TypeScript should be used. It is very useful during large refactors because it reports any issues you might miss otherwise. When refactoring, change the type declaration first, then fix all the TypeScript errors throughout the project and you are done. One thing you should keep in mind is that TypeScript does not protect your application from failing during runtime, it only does type checking during build time, but it increases development confidence drastically anyways.
+## iOS scene lifecycle
 
-## Absolute imports
-
-Absolute imports should always be configured and used because it makes it easier to move files around and avoid messy import paths such as `../../../Component`. Wherever you move the file, all the imports will remain intact. Here is how to configure it:
-
-For TypeScript (`tsconfig.json`) projects:
-
-```json
-"compilerOptions": {
-		"strict": true,
-		"baseUrl": ".",
-		"paths": {
-			"@/*": ["./*"]
-		}
-	}
-```
-
-[Configuration Example Code](../tsconfig.json)
+The checked-in `AppDelegate.mm` includes a single-window scene delegate for iOS 27.
+Expo initializes after the scene supplies its window, and cold/warm URL callbacks
+are forwarded into React Native. Keep this native customization when regenerating
+`ios/`; the scene manifest in `app.json` refers to `RedPlannerSceneDelegate`.
+In development builds, cold app links are queued until Expo reopens the last
+bundle, so authentication links reach the app instead of stopping at the launcher.

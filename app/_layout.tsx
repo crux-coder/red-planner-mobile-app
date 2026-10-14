@@ -1,24 +1,17 @@
-import "../global.css";
+import { Stack } from "expo-router";
+import { StatusBar, useColorScheme } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import { Slot } from "expo-router";
-import { View } from "react-native";
+import { AuthProvider } from "@/context/auth";
 
-import { SupabaseProvider, useSupabase } from "@/context/supabase-provider";
-
-function RootLayoutNav() {
-	const { onLayoutRootView } = useSupabase();
-
+export default function RootLayout() {
+	const dark = useColorScheme() === "dark";
 	return (
-		<View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-			<Slot />
-		</View>
-	);
-}
-
-export default function AppLayout() {
-	return (
-		<SupabaseProvider>
-			<RootLayoutNav />
-		</SupabaseProvider>
+		<SafeAreaProvider>
+			<StatusBar barStyle={dark ? "light-content" : "dark-content"} />
+			<AuthProvider>
+				<Stack screenOptions={{ headerShown: false }} />
+			</AuthProvider>
+		</SafeAreaProvider>
 	);
 }

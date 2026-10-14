@@ -27,15 +27,22 @@
         }
       },
       "bundleIdentifier": "uk.co.redlaser",
+      "buildNumber": "1",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "We need access to your photo library so you can select and upload images to change your profile photo."
-      },
-      "buildNumber": "1"
+        "UIApplicationSceneManifest": {
+          "UIApplicationSupportsMultipleScenes": false,
+          "UISceneConfigurations": {
+            "UIWindowSceneSessionRoleApplication": [
+              {
+                "UISceneConfigurationName": "Default Configuration",
+                "UISceneDelegateClassName": "RedPlannerSceneDelegate"
+              }
+            ]
+          }
+        }
+      }
     },
     "android": {
-      "android": {
-        "versionCode": 2
-      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png"
       },
@@ -50,17 +57,13 @@
         }
       },
       "package": "uk.co.redlaser",
-      "permissions": [
-        "READ_MEDIA_IMAGES"
-      ],
       "versionCode": 1
     },
     "experiments": {
       "typedRoutes": true
     },
     "plugins": [
-      "expo-router",
-      "expo-secure-store"
+      "expo-router"
     ],
     "extra": {
       "router": {

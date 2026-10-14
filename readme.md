@@ -1,27 +1,38 @@
-# Expo Supabase Starter
+# RedPlanner
 
-![social-preview-dark](https://github.com/user-attachments/assets/bcee6db2-6dd0-435f-8255-3f4b36b4cfdc)
+Minimal Expo / React Native app for redevelopment: email/password login, magic links, Microsoft sign-in, password recovery, and an authenticated native home screen matching the main repo’s `/mobile` design. Supabase manages authentication and persisted sessions. The home screen reads the signed-in employee’s assigned jobs from Supabase using the existing session and row-level security. It displays the current London business week, crew, equipment, site information, and job briefs. Pull to refresh or reopen the app to reload. HR, notifications, directions launch, and phone calls are not connected. Equipment checks remain local; sign out is under More. No database changes, web-app links, or uploads are added.
 
-## Introduction
+## Run
 
-This repository serves as a comprehensive starter project for developing React Native and Expo applications with Supabase as the backend. It integrates various technologies such as Expo Router for navigation, Tailwind CSS for styling, React-Hook-Form for form handling, Zod for schema validation, and TypeScript for type safety. By leveraging these powerful tools, this starter template provides a robust foundation for building modern, scalable, and efficient mobile applications.
+1. `npm ci`
+2. Copy `.env.example` to `.env` and supply your Supabase URL and publishable key.
+3. `npm run ios:device` to build and install on an iPhone.
+4. `npm run start:device` for subsequent development sessions.
 
-#### Disclaimer
+See [iPhone setup](docs/project-configuration.md) for signing and device requirements.
 
-This is not supposed to be a template, boilerplate or a framework. It is an opinionated guide that shows how to do some things in a certain way. You are not forced to do everything exactly as it is shown here, decide what works best for you and your team and stay consistent with your style.
+## Structure
 
-## Table of Contents
+- `app/`: root navigation, login, and home.
+- `context/auth.tsx`: session restoration, auth events, and refresh lifecycle.
+- `config/supabase.ts`: Supabase client configuration.
+- `components/ui.tsx`: shared native controls and light/dark colors.
+- `ios/`, `android/`: native projects. Reinstall CocoaPods after changing native dependencies.
 
-- [💻 Application Overview](docs/application-overview.md)
-- [⚙️ Project Configuration](docs/project-configuration.md)
-- [🗄️ Project Structure](docs/project-structure.md)
-- [🧱 Components And Styling](docs/components-and-styling.md)
-- [🗃️ State Management](docs/state-management.md)
+Use `npm run typecheck`, `npm run lint`, and `npm test` (Node 22.18+) to check changes. Styling uses React Native StyleSheet; npm is the package manager and `package-lock.json` is the lockfile.
 
-## Contributing
+## Authentication callbacks
 
-Contributions to this starter project are highly encouraged and welcome! If you have any suggestions, bug reports, or feature requests, please feel free to create an issue or submit a pull request. Let's work together to enhance the developer experience and make it easier for everyone to build exceptional Expo applications with Supabase.
+Add `red-planner://auth/callback` to Supabase Authentication → URL Configuration → Redirect URLs for each environment. Enable the Azure provider with the Microsoft application credentials to use Microsoft login. The current staging project has Azure disabled; production is configured separately.
 
-## License
+Magic links only sign in existing users. Open the link on the same device that requested it, since the PKCE verifier is stored locally. Password recovery uses the same callback.
 
-This repository is licensed under the MIT License. You are granted the freedom to use, modify, and distribute the code for personal or commercial purposes. For more details, please refer to the [LICENSE](https://github.com/FlemingVincent/supabase-starter/blob/main/LICENSE) file.
+Use `supabase/templates/magic_link.html` and `supabase/templates/recovery.html` in the project's Supabase Auth email templates. Both web and mobile emails first open the web `/auth/confirm` page, which must never verify tokens on GET. After the user submits the confirmation form, the web app sends mobile requests to Supabase's verification endpoint with the exact `red-planner://auth/callback` redirect. The iPhone exchanges the returned PKCE code using its stored verifier. Deploy the web app's mobile confirmation handler before applying these templates to hosted Supabase. Request a new email after saving, since previously sent links do not change.
+
+The native callback uses PKCE with secure random values and SHA-256 via Expo Crypto. Native auth browser sessions use Expo WebBrowser. The exact web logo is bundled as SVG source and rendered with React Native SVG.
+
+## Pending actions
+
+`EXPO_PUBLIC_WEB_API_ORIGIN=https://stage.codepeaktrail.dev` selects the main app's staging API (the same Supabase environment as this build). Restart Metro after changing it. The home screen requests `GET /api/mobile/action-required` with the current Supabase access token. The backend validates that token and reuses the existing document, form, and risk-assessment loaders; it returns only pending-action summaries. Each category can fail independently without hiding successful results. Pull to refresh and returning to the app reload both the schedule and pending actions.
+
+The native Action required section matches the `/mobile` reference. Selecting a row shows its summary locally; completing or signing documents/forms/risk assessments in the mobile app is not implemented yet. No web links are opened. Deploy the main-repo endpoint before testing against staging; an unavailable endpoint is shown as an error with Retry, never as an empty list.
