@@ -5,6 +5,7 @@ export interface HomeJob {
 	survey: string;
 	status: string;
 	detailsRestricted: boolean;
+	contactUnavailable?: boolean;
 	address: string | null;
 	start: string;
 	end: string;
@@ -22,6 +23,8 @@ export interface HomeSchedule {
 	jobs: HomeJob[];
 }
 export interface ScheduleSourceJob {
+	operationalContact?: { name: string | null; phone: string | null } | null;
+	contactUnavailable?: boolean;
 	id: string;
 	job_number: string | null;
 	job_type: string;
@@ -164,6 +167,7 @@ export function mapHomeJobs(
 					survey: typeLabels[job.job_type] ?? job.job_type,
 					status: job.job_status,
 					detailsRestricted: !project || (isContactId && !contact),
+					contactUnavailable: job.contactUnavailable,
 					address: project?.address?.trim() || null,
 					start: new Date(segmentStart).toISOString().slice(11, 16),
 					end:
@@ -205,12 +209,20 @@ export function mapHomeJobs(
 						job.notes?.trim() ||
 						job.description?.trim() ||
 						"No job brief recorded",
-					contact: contact
-						? [contact.first_name, contact.last_name].filter(Boolean).join(" ")
-						: isContactId
-							? null
-							: project?.site_contact?.trim() || null,
-					contactPhone: contact?.phone || contact?.work_phone || null,
+					contact:
+						job.operationalContact !== undefined
+							? (job.operationalContact?.name ?? null)
+							: contact
+								? [contact.first_name, contact.last_name]
+										.filter(Boolean)
+										.join(" ")
+								: isContactId
+									? null
+									: project?.site_contact?.trim() || null,
+					contactPhone:
+						job.operationalContact !== undefined
+							? (job.operationalContact?.phone ?? null)
+							: contact?.phone || contact?.work_phone || null,
 				});
 			}
 		}

@@ -42,3 +42,19 @@ are forwarded into React Native. Keep this native customization when regeneratin
 `ios/`; the scene manifest in `app.json` refers to `RedPlannerSceneDelegate`.
 In development builds, cold app links are queued until Expo reopens the last
 bundle, so authentication links reach the app instead of stopping at the launcher.
+
+## Local backend on a physical iPhone
+
+Run the main backend with `pnpm dev --hostname 0.0.0.0` in
+`../red-laser-job-scheduler` (default port 3000). Keep the phone and laptop on
+the same Wi-Fi network. In this app's gitignored `.env`, set
+`EXPO_PUBLIC_WEB_API_ORIGIN=http://<laptop-Wi-Fi-IP>:3000`, then restart Metro
+with `npm run start:device` and reopen the app. On macOS, `ipconfig getifaddr en0`
+usually shows the Wi-Fi address; update the URL if that address changes.
+
+Development builds allow HTTP to private IPv4 addresses and localhost;
+release builds still require HTTPS. On a physical phone, localhost refers to
+the phone, so use the laptop's address. The backend must use the same Supabase
+project as the mobile app. This setting routes pending-action requests locally;
+authentication and schedules still connect directly to the configured Supabase.
+To return to staging, restore `https://stage.codepeaktrail.dev` and restart Metro.

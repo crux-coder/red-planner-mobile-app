@@ -60,8 +60,24 @@ export async function loadActionRequired(
 ): Promise<ActionRequired> {
 	if (!origin) throw new Error("The pending-action API is not configured.");
 	const url = new URL(origin);
+	const octets = url.hostname.split(".").map(Number);
+	const privateIPv4 =
+		octets.length === 4 &&
+		octets.every(
+			(part) => Number.isInteger(part) && part >= 0 && part <= 255,
+		) &&
+		(octets[0] === 10 ||
+			(octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+			(octets[0] === 192 && octets[1] === 168));
+	const localDevelopmentHttp =
+		typeof __DEV__ !== "undefined" &&
+		__DEV__ &&
+		url.protocol === "http:" &&
+		(privateIPv4 ||
+			url.hostname === "localhost" ||
+			url.hostname === "127.0.0.1");
 	if (
-		url.protocol !== "https:" ||
+		(url.protocol !== "https:" && !localDevelopmentHttp) ||
 		url.username ||
 		url.password ||
 		url.search ||
@@ -85,6 +101,10 @@ export async function loadActionRequired(
 		);
 	if (response.status === 403)
 		throw new Error("Your account does not have access to pending actions.");
+	if (response.status === 404)
+		throw new Error(
+			"Pending actions are not available on this server yet. Please contact your administrator.",
+		);
 	if (!response.ok)
 		throw new Error("Couldn’t check pending actions. Please try again.");
 	return parseActionRequired(await response.json());

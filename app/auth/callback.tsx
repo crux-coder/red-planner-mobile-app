@@ -1,8 +1,8 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator } from "react-native";
 
 import { AuthButton, AuthScreen, AuthMessage } from "@/components/auth-card";
+import { LoadingSkeleton } from "@/components/home/loading-skeleton";
 import { authRedirectUri, completeAuthCallback } from "@/lib/auth";
 import { INVALID_LINK } from "@/lib/auth-callback";
 
@@ -60,7 +60,7 @@ export default function AuthCallback() {
 					/>
 				</>
 			) : (
-				<ActivityIndicator accessibilityLabel="Completing sign-in" />
+				<LoadingSkeleton label="Completing sign-in" compact />
 			)}
 		</AuthScreen>
 	);

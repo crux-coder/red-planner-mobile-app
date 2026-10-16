@@ -79,3 +79,65 @@ test("HTTP and invalid JSON failures remain errors, not empty lists", async () =
 		),
 	);
 });
+test("a missing endpoint explains that the service is unavailable", async () => {
+	await assert.rejects(
+		loadActionRequired(
+			"https://stage.example",
+			"token",
+			undefined,
+			async () => new Response("Not Found", { status: 404 }),
+		),
+		{
+			message:
+				"Pending actions are not available on this server yet. Please contact your administrator.",
+		},
+	);
+});
+
+test("local HTTP is allowed only for private addresses in development", async () => {
+	const previous = globalThis.__DEV__;
+	try {
+		globalThis.__DEV__ = true;
+		for (const host of [
+			"192.168.0.174",
+			"10.0.0.2",
+			"172.16.0.2",
+			"localhost",
+			"127.0.0.1",
+		]) {
+			let called = false;
+			await loadActionRequired(
+				`http://${host}:3000`,
+				"token",
+				undefined,
+				async (url) => {
+					called = true;
+					assert.equal(url, `http://${host}:3000/api/mobile/action-required`);
+					return Response.json({ items: [], unavailable: [] });
+				},
+			);
+			assert.equal(called, true);
+		}
+		for (const origin of [
+			"http://example.com",
+			"http://172.32.0.2",
+			"http://192.168.0.174/path",
+			"http://user:pass@192.168.0.174",
+		]) {
+			await assert.rejects(
+				loadActionRequired(origin, "token", undefined, () =>
+					assert.fail("must not fetch"),
+				),
+			);
+		}
+		globalThis.__DEV__ = false;
+		await assert.rejects(
+			loadActionRequired("http://192.168.0.174:3000", "token", undefined, () =>
+				assert.fail("must not fetch in release"),
+			),
+		);
+	} finally {
+		if (previous === undefined) delete globalThis.__DEV__;
+		else globalThis.__DEV__ = previous;
+	}
+});

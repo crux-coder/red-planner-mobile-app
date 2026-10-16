@@ -3,7 +3,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
 	emptySchedule,
 	mapHomeJobs,
-	type ScheduleContact,
 	type ScheduleSourceJob,
 } from "./schedule.ts";
 
@@ -30,30 +29,35 @@ type JobRow = {
 	job_number: string | null;
 	job_type: string;
 	job_status: string;
-	job_project: ScheduleSourceJob["job_project"];
 };
-type PersonRow = { job: string; employee_id: string } & Omit<
-	ScheduleSourceJob["people_assignments"][number],
-	"employee"
-> & {
-		employee:
-			| ScheduleSourceJob["people_assignments"][number]["employee"]
-			| null;
-	};
-type EquipmentRow = { job: string } & Omit<
-	ScheduleSourceJob["equipment_assignments"][number],
-	"equipment"
-> & {
-		equipment:
-			| ScheduleSourceJob["equipment_assignments"][number]["equipment"]
-			| null;
-	};
-type EntryRow = {
-	id: string;
+type OperationalDetails = {
+	job_id: string;
+	project_name: string | null;
+	address: string | null;
+	site_access: string | null;
+	site_contact: { name: string | null; phone: string | null } | null;
+	site_contact_status:
+		| "resolved"
+		| "free_text"
+		| "not_recorded"
+		| "unavailable";
 	notes: string | null;
 	description: string | null;
+	equipment_assignments: {
+		name: string | null;
+		inventory_number: string | null;
+		assigned_start_date: string | null;
+		assigned_end_date: string | null;
+	}[];
+	people_assignments: {
+		id: string;
+		employee_id: string;
+		first_name: string | null;
+		last_name: string | null;
+		assigned_start_date: string | null;
+		assigned_end_date: string | null;
+	}[];
 };
-
 export async function loadSchedule(client: SupabaseClient, now = new Date()) {
 	const {
 		data: { user },
@@ -104,106 +108,62 @@ export async function loadSchedule(client: SupabaseClient, now = new Date()) {
 	// Bound URL lengths when an employee has many assignments.
 	for (let offset = 0; offset < ids.length; offset += 50) {
 		const batch = ids.slice(offset, offset + 50);
-		const [jobs, entries, people, equipment] = await Promise.all([
+		const [jobs, detailsResult] = await Promise.all([
 			allRows<JobRow>((start, end) =>
 				client
 					.from("jobs")
-					.select(
-						"id, job_number, job_type, job_status, job_project:projects(name, address, site_access, site_contact)",
-					)
+					.select("id, job_number, job_type, job_status")
 					.in("id", batch)
 					.order("id")
 					.range(start, end)
 					.returns<JobRow[]>(),
 			),
-			allRows<EntryRow>((start, end) =>
-				client
-					.from("calendar_entries")
-					.select("id, notes, description")
-					.in("id", batch)
-					.eq("kind", "job")
-					.order("id")
-					.range(start, end),
-			),
-			allRows<PersonRow>((start, end) =>
-				client
-					.from("job_people_assignments")
-					.select(
-						"id, job, employee_id, assigned_start_date, assigned_end_date, employee:employee_directory(id, first_name, last_name)",
-					)
-					.in("job", batch)
-					.lt("assigned_start_date", to)
-					.gt("assigned_end_date", from)
-					.order("id")
-					.range(start, end)
-					.returns<PersonRow[]>(),
-			),
-			allRows<EquipmentRow>((start, end) =>
-				client
-					.from("job_equipment_assignments")
-					.select(
-						"job, assigned_start_date, assigned_end_date, equipment:equipment(name, inventory_number)",
-					)
-					.in("job", batch)
-					.lt("assigned_start_date", to)
-					.gt("assigned_end_date", from)
-					.order("id")
-					.range(start, end)
-					.returns<EquipmentRow[]>(),
-			),
+			client.rpc("get_job_operational_details", { p_job_ids: batch }),
 		]);
+		if (detailsResult.error) throw new Error(detailsResult.error.message);
+		const details = (detailsResult.data ?? []) as OperationalDetails[];
 		for (const job of jobs) {
-			const entry = entries.find((row) => row.id === job.id);
+			const entry = details.find((row) => row.job_id === job.id);
 			if (!entry)
 				throw new Error(
 					"Some assigned job details could not be loaded. Please try again.",
+				);
+			if (!Array.isArray(entry.equipment_assignments))
+				throw new Error(
+					"Assigned equipment could not be loaded. Please try again or contact support.",
 				);
 			sources.push({
 				...job,
 				notes: entry.notes,
 				description: entry.description,
-				people_assignments: people
-					.filter((row) => row.job === job.id)
-					.map((row) => ({
-						...row,
-						employee: row.employee ?? {
-							id: row.employee_id,
-							first_name: null,
-							last_name: null,
-						},
-					})),
-				equipment_assignments: equipment
-					.filter((row) => row.job === job.id)
-					.flatMap((row) =>
-						row.equipment ? [{ ...row, equipment: row.equipment }] : [],
-					),
+				job_project: {
+					name: entry.project_name,
+					address: entry.address,
+					site_access: entry.site_access,
+					site_contact: null,
+				},
+				operationalContact: entry.site_contact,
+				contactUnavailable: entry.site_contact_status === "unavailable",
+				people_assignments: entry.people_assignments.map((row) => ({
+					id: row.id,
+					assigned_start_date: row.assigned_start_date ?? "",
+					assigned_end_date: row.assigned_end_date ?? "",
+					employee: {
+						id: row.employee_id,
+						first_name: row.first_name,
+						last_name: row.last_name,
+					},
+				})),
+				equipment_assignments: entry.equipment_assignments.map((row) => ({
+					assigned_start_date: row.assigned_start_date ?? "",
+					assigned_end_date: row.assigned_end_date ?? "",
+					equipment: { name: row.name, inventory_number: row.inventory_number },
+				})),
 			});
 		}
 	}
-	const contactIds = [
-		...new Set(
-			sources
-				.map((job) => job.job_project?.site_contact)
-				.filter(
-					(id): id is string => !!id && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id),
-				),
-		),
-	];
-	const contacts: ScheduleContact[] = [];
-	for (let offset = 0; offset < contactIds.length; offset += 50) {
-		contacts.push(
-			...(await allRows<ScheduleContact>((start, end) =>
-				client
-					.from("contacts")
-					.select("id, first_name, last_name, phone, work_phone")
-					.in("id", contactIds.slice(offset, offset + 50))
-					.order("id")
-					.range(start, end),
-			)),
-		);
-	}
 	return {
 		...schedule,
-		jobs: mapHomeJobs(sources, employee.id, schedule.days, contacts),
+		jobs: mapHomeJobs(sources, employee.id, schedule.days, []),
 	};
 }

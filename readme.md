@@ -1,6 +1,6 @@
 # RedPlanner
 
-Minimal Expo / React Native app for redevelopment: email/password login, magic links, Microsoft sign-in, password recovery, and an authenticated native home screen matching the main repo’s `/mobile` design. Supabase manages authentication and persisted sessions. The home screen reads the signed-in employee’s assigned jobs from Supabase using the existing session and row-level security. It displays the current London business week, crew, equipment, site information, and job briefs. Pull to refresh or reopen the app to reload. HR, notifications, directions launch, and phone calls are not connected. Equipment checks remain local; sign out is under More. No database changes, web-app links, or uploads are added.
+Minimal Expo / React Native app for redevelopment: email/password login, magic links, Microsoft sign-in, password recovery, and an authenticated native home screen matching the main repo’s `/mobile` design. Supabase manages authentication and persisted sessions. The home screen reads the signed-in employee’s assigned jobs from Supabase using the existing session and row-level security. It displays the current London business week, crew, equipment, site information, and job briefs. Pull to refresh or reopen the app to reload. HR, directions launch, and phone calls are not connected. Equipment checks remain local; sign out is under More. No database changes, web-app links, or uploads are added.
 
 ## Run
 
@@ -36,3 +36,15 @@ The native callback uses PKCE with secure random values and SHA-256 via Expo Cry
 `EXPO_PUBLIC_WEB_API_ORIGIN=https://stage.codepeaktrail.dev` selects the main app's staging API (the same Supabase environment as this build). Restart Metro after changing it. The home screen requests `GET /api/mobile/action-required` with the current Supabase access token. The backend validates that token and reuses the existing document, form, and risk-assessment loaders; it returns only pending-action summaries. Each category can fail independently without hiding successful results. Pull to refresh and returning to the app reload both the schedule and pending actions.
 
 The native Action required section matches the `/mobile` reference. Selecting a row shows its summary locally; completing or signing documents/forms/risk assessments in the mobile app is not implemented yet. No web links are opened. Deploy the main-repo endpoint before testing against staging; an unavailable endpoint is shown as an error with Retry, never as an empty list.
+
+## Notifications
+
+The bell on Today and Schedule opens the native notification inbox. It reads
+existing notifications through the signed-in Supabase client and the existing
+recipient-only row policies. Unread notifications show a pink dot on the bell;
+the count refreshes every 30 seconds while active and when the app returns to
+the foreground. Opening the inbox or pulling to refresh loads recent items.
+Older items can be loaded in pages. Mark as read persists the read state shared
+with the web app. Opening the inbox alone does not mark everything as read.
+This is an in-app inbox; push notifications and notification destination links
+are not part of this screen.

@@ -1,0 +1,13 @@
+Tool: built-in image_gen
+
+Shared prompt:
+Use case: ui-mockup. Create one high-fidelity mobile app UI concept, portrait, straight-on screen with no physical phone or perspective. Red Planner employee self-service app. Match existing brand: white background, navy #10213b text, blue #075ed2 icons, magenta #e90087 primary actions, Arial-like sans serif. Top iOS status bar, app header with small RED LASER wordmark left, Profile centered and bell right. Bottom floating white rounded navigation bar Today, Schedule, HR, Profile with Profile selected blue. Crisp legible typography, realistic spacing for 390px wide phone, accessible sized controls. Show illustrative fictional employee information only. No invented statistics, scores, upload-photo control or toggle preferences. Include small concept name outside screen at top. Premium practical business app, restrained borders, subtle shadows.
+
+01-section-cards
+Direction: A calm section-card layout. Compact horizontal avatar with name and job title, then white bordered cards on white canvas: Personal information with Edit, Contact details with Edit, Home address with Edit, Emergency contacts with chevron, Employment details marked Managed by HR, Documents & training. A small pink edit action and blue line icons. Show example populated values in first cards.
+
+02-profile-hub
+Direction: An elegant profile hub. Large centered circular initials avatar JM, name Jamie Morgan, Surveyor. Underneath a two-column grid of six spacious rounded navigation tiles: Personal details, Contact & address, Emergency contacts, Employment, Documents, Training. Each has a thin blue line icon, brief descriptive secondary text and a chevron. Then Account section with sign out. Mostly white with extremely pale blue tiles and selective pink accents.
+
+03-detail-tabs
+Direction: A refined editorial profile with a pale blue identity banner, circular JM avatar left, Jamie Morgan and Surveyor right. Horizontal compact tabs Personal (active with magenta underline), Employment, Documents. Personal content uses clean divider rows with large readable values and blue Edit links for grouped Personal details, Contact details, Home address, Emergency contacts. Bottom of mockup includes a small floating Edit contact details sheet showing Mobile phone and Personal email inputs, Cancel and magenta Save changes button.

@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import {
-	ActivityIndicator,
 	Pressable,
 	StyleSheet,
 	Text,
@@ -9,6 +8,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { LoadingSkeleton } from "@/components/home/loading-skeleton";
 import { useAuth } from "@/context/auth";
 
 export function useColors() {
@@ -53,7 +53,7 @@ export function ActionButton({
 			]}
 		>
 			{busy ? (
-				<ActivityIndicator color="white" />
+				<LoadingSkeleton inline inverted label={title} />
 			) : (
 				<Text style={styles.buttonText}>{title}</Text>
 			)}
@@ -74,10 +74,7 @@ export function SessionStatus() {
 					<ActionButton title="Try again" onPress={retry} />
 				</>
 			) : (
-				<ActivityIndicator
-					accessibilityLabel="Restoring session"
-					color={colors.text}
-				/>
+				<LoadingSkeleton label="Restoring session" />
 			)}
 		</Screen>
 	);

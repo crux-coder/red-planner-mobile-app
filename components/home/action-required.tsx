@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-	ActivityIndicator,
 	Modal,
 	Platform,
 	Pressable,
@@ -12,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Icon } from "./icon";
+import { LoadingSkeleton } from "./loading-skeleton";
 
 import {
 	actionLabels,
@@ -24,12 +24,15 @@ export function ActionRequiredSection({
 	loading,
 	error,
 	onRetry,
+	onOpen,
 }: {
 	data: ActionRequired;
 	loading: boolean;
 	error: string | null;
 	onRetry: () => void;
+	onOpen?: (item: PendingAction) => void;
 }) {
+	const [reviewing, setReviewing] = useState(false);
 	const [selected, setSelected] = useState<PendingAction | null>(null);
 	// Derive the open item from fresh data so completed/removed actions cannot remain open.
 	const current =
@@ -38,94 +41,156 @@ export function ActionRequiredSection({
 					(item) => item.id === selected.id && item.kind === selected.kind,
 				)
 			: null;
+	const documentsOnly =
+		data.items.length > 0 &&
+		data.items.every((item) => item.kind === "document");
+	const summary = documentsOnly
+		? `${data.items.length} ${data.items.length === 1 ? "document" : "documents"} to sign`
+		: `${data.items.length} ${data.items.length === 1 ? "action needs" : "actions need"} your attention`;
+	function closeReview() {
+		setReviewing(false);
+		setSelected(null);
+	}
+	if (loading)
+		return <LoadingSkeleton label="Loading pending actions" compact />;
 	if (!loading && !error && !data.items.length && !data.unavailable.length)
 		return null;
 	return (
 		<View style={s.card}>
-			<Text accessibilityRole="header" style={s.heading}>
-				Action required
-			</Text>
-			{loading ? (
-				<View style={s.loading}>
-					<ActivityIndicator color="#e90087" />
-					<Text style={s.description}>Checking pending actions…</Text>
-				</View>
-			) : (
-				<>
-					{data.items.map((item, index) => (
-						<Pressable
-							key={`${item.kind}:${item.id}`}
-							accessibilityRole="button"
-							onPress={() => setSelected(item)}
-							style={({ pressed }) => [
-								s.row,
-								index === data.items.length - 1 && { borderBottomWidth: 0 },
-								pressed && { backgroundColor: "#ffe1f2" },
-							]}
-						>
-							<Icon
-								name={
-									item.kind === "document"
-										? "signature"
-										: item.kind === "form"
-											? "clipboard"
-											: "shield"
-								}
-								color="#e90087"
-								size={22}
-							/>
-							<View style={s.words}>
-								<Text style={s.title}>{item.title}</Text>
-								<Text style={s.description}>{item.description}</Text>
-							</View>
-							<Icon name="chevron" size={18} />
-						</Pressable>
-					))}
-					{error || data.unavailable.length ? (
-						<View style={s.notice}>
-							<Text accessibilityRole="alert" style={s.noticeText}>
-								{error ||
-									`Couldn’t check ${data.unavailable.map((kind) => actionLabels[kind]).join(", ")}. Please try again.`}
+			<View style={s.summaryRow}>
+				<Icon name="signature" size={32} color="#fff" />
+				<View style={s.words}>
+					<Text accessibilityRole="header" style={s.heading}>
+						ACTION REQUIRED
+					</Text>
+					{!loading && !error && data.items.length > 0 ? (
+						<>
+							<Text style={s.summary}>{summary}</Text>
+							<Text style={s.summaryDescription}>
+								{documentsOnly
+									? "Review and sign your documents"
+									: "Review your outstanding items"}
 							</Text>
-							<Pressable
-								accessibilityRole="button"
-								onPress={onRetry}
-								style={s.button}
-							>
-								<Text style={s.buttonText}>Retry action required</Text>
-							</Pressable>
-						</View>
+						</>
 					) : null}
-				</>
-			)}
+				</View>
+			</View>
+
+			<>
+				{!error && data.items.length > 0 ? (
+					<Pressable
+						accessibilityRole="button"
+						onPress={() => setReviewing(true)}
+						style={({ pressed }) => [
+							s.reviewButton,
+							pressed && { opacity: 0.8 },
+						]}
+					>
+						<Text style={s.reviewText}>
+							{documentsOnly ? "Review documents" : "Review actions"}
+						</Text>
+						<Icon name="chevron" size={20} color="#c40071" />
+					</Pressable>
+				) : null}
+				{error || data.unavailable.length ? (
+					<View style={s.notice}>
+						<Text accessibilityRole="alert" style={s.noticeText}>
+							{error ||
+								`Couldn’t check ${data.unavailable.map((kind) => actionLabels[kind]).join(", ")}. Please try again.`}
+						</Text>
+						<Pressable
+							accessibilityRole="button"
+							onPress={onRetry}
+							style={s.button}
+						>
+							<Text style={s.buttonText}>Retry action required</Text>
+						</Pressable>
+					</View>
+				) : null}
+			</>
 			<Modal
-				visible={!!current}
+				visible={reviewing && !loading && !error}
 				transparent
 				animationType="fade"
-				onRequestClose={() => setSelected(null)}
+				onRequestClose={closeReview}
 			>
 				<SafeAreaView style={s.overlay}>
 					<Pressable
 						style={StyleSheet.absoluteFill}
 						accessibilityLabel="Dismiss pending action"
-						onPress={() => setSelected(null)}
+						onPress={closeReview}
 					/>
 					<View accessibilityViewIsModal style={s.dialog}>
 						<ScrollView contentContainerStyle={{ gap: 18 }}>
 							<Text accessibilityRole="header" style={s.dialogTitle}>
-								{current?.title}
+								{current?.title ||
+									(documentsOnly ? "Documents to review" : "Pending actions")}
 							</Text>
-							<Text style={s.description}>{current?.description}</Text>
-							<Text style={s.noticeText}>
-								This action is still pending. Reviewing and completing it in the
-								mobile app is not available yet.
-							</Text>
+							{current ? (
+								<>
+									<Text style={s.description}>{current.description}</Text>
+									<Text style={s.noticeText}>
+										This action is still pending. Reviewing and completing it in
+										the mobile app is not available yet.
+									</Text>
+									<Pressable
+										accessibilityRole="button"
+										onPress={() => setSelected(null)}
+										style={s.button}
+									>
+										<Text style={s.buttonText}>Back to all actions</Text>
+									</Pressable>
+								</>
+							) : (
+								<>
+									{" "}
+									{data.items.map((item, index) => (
+										<Pressable
+											key={`${item.kind}:${item.id}`}
+											accessibilityRole="button"
+											onPress={() => {
+												if (
+													onOpen &&
+													(item.kind === "document" || item.kind === "form")
+												) {
+													closeReview();
+													onOpen(item);
+												} else setSelected(item);
+											}}
+											style={({ pressed }) => [
+												s.row,
+												index === data.items.length - 1 && {
+													borderBottomWidth: 0,
+												},
+												pressed && { backgroundColor: "#ffe1f2" },
+											]}
+										>
+											<Icon
+												name={
+													item.kind === "document"
+														? "signature"
+														: item.kind === "form"
+															? "clipboard"
+															: "shield"
+												}
+												color="#e90087"
+												size={22}
+											/>
+											<View style={s.words}>
+												<Text style={s.title}>{item.title}</Text>
+												<Text style={s.description}>{item.description}</Text>
+											</View>
+											<Icon name="chevron" size={18} />
+										</Pressable>
+									))}
+								</>
+							)}
 						</ScrollView>
 						<Pressable
 							accessibilityRole="button"
 							accessibilityLabel="Close pending action"
 							style={s.close}
-							onPress={() => setSelected(null)}
+							onPress={closeReview}
 						>
 							<Icon name="close" size={21} />
 						</Pressable>
@@ -143,18 +208,40 @@ const fontFamily = Platform.select({
 const s = StyleSheet.create({
 	card: {
 		marginBottom: 14,
-		padding: 14,
-		backgroundColor: "#fff0f8",
+		padding: 18,
+		backgroundColor: "#e90087",
 		borderWidth: 2,
 		borderColor: "#e90087",
-		borderRadius: 10,
+		borderRadius: 18,
 	},
 	heading: {
 		fontFamily,
-		color: "#a60060",
-		fontSize: 18,
-		lineHeight: 26.1,
+		color: "#fff",
+		fontSize: 11,
+		lineHeight: 16,
+		letterSpacing: 0.7,
 		fontWeight: "700",
+	},
+	summaryRow: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
+	summary: { fontSize: 20, lineHeight: 26, fontWeight: "700", color: "#fff" },
+	summaryDescription: { fontSize: 13, lineHeight: 19, color: "#fff" },
+	reviewButton: {
+		minHeight: 46,
+		marginTop: 16,
+		backgroundColor: "#fff",
+		borderRadius: 12,
+		paddingHorizontal: 16,
+		paddingVertical: 10,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: 10,
+	},
+	reviewText: {
+		flexShrink: 1,
+		fontSize: 15,
+		fontWeight: "700",
+		color: "#c40071",
 	},
 	row: {
 		flexDirection: "row",
@@ -173,12 +260,6 @@ const s = StyleSheet.create({
 		color: "#10213b",
 	},
 	description: { fontFamily, fontSize: 12, lineHeight: 17.4, color: "#53647d" },
-	loading: {
-		flexDirection: "row",
-		gap: 10,
-		alignItems: "center",
-		paddingTop: 12,
-	},
 	notice: {
 		padding: 14,
 		backgroundColor: "#eff6ff",

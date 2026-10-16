@@ -127,7 +127,38 @@ function fakeClient({
 	const client = {
 		calls,
 		auth: { getUser: async () => ({ data: { user }, error: null }) },
-		rpc: async () => ({ data: allowed, error: null }),
+		rpc: async (name) => ({
+			data:
+				name === "get_job_operational_details"
+					? [
+							{
+								job_id: "job",
+								project_name: "Project",
+								address: "Site",
+								site_access: "Reception",
+								site_contact: null,
+								site_contact_status: "not_recorded",
+								notes: "Actual job brief",
+								description: null,
+								equipment_assignments: [
+									{
+										name: "Scanner",
+										inventory_number: "KIT-1",
+										assigned_start_date: "2026-10-14T09:00:00",
+										assigned_end_date: "2026-10-14T12:00:00",
+									},
+								],
+								people_assignments: source().people_assignments.map((p) => ({
+									...p,
+									employee_id: p.employee.id,
+									first_name: p.employee.first_name,
+									last_name: null,
+								})),
+							},
+						]
+					: allowed,
+			error: null,
+		}),
 		from(table) {
 			const call = { table, filters: [] };
 			calls.push(call);
@@ -227,15 +258,7 @@ test("loader assembles assigned job, brief, equipment and crew from query result
 			if (call.table === "jobs") return [original];
 			if (call.table === "calendar_entries")
 				return [{ id: "job", notes: "Actual job brief", description: null }];
-			if (call.table === "job_equipment_assignments")
-				return [
-					{
-						job: "job",
-						assigned_start_date: "2026-10-14T09:00:00",
-						assigned_end_date: "2026-10-14T12:00:00",
-						equipment: { name: "Scanner", inventory_number: "KIT-1" },
-					},
-				];
+			if (call.table === "job_equipment_assignments") return [];
 			return [];
 		},
 	});
@@ -252,5 +275,160 @@ test("loader assembles assigned job, brief, equipment and crew from query result
 				(f) => f[0] === "in" && f[2].length === 1 && f[2][0] === "job",
 			),
 		);
+	}
+});
+
+test("uses operational details when direct project reads are restricted", async () => {
+	const original = source({ job_project: null });
+	const client = fakeClient({
+		queryRows: (call) => {
+			if (call.table === "jobs") return [original];
+			if (call.table === "calendar_entries")
+				return [{ id: "job", notes: "Brief" }];
+			if (call.table === "job_people_assignments")
+				return call.filters.find((f) => f[0] === "select")?.[1] === "job"
+					? [{ job: "job" }]
+					: original.people_assignments.map((p) => ({
+							...p,
+							job: "job",
+							employee_id: p.employee.id,
+						}));
+			return [];
+		},
+	});
+	client.rpc = async (name) => ({
+		error: null,
+		data:
+			name === "get_job_operational_details"
+				? [
+						{
+							job_id: "job",
+							project_name: "Project",
+							address: "Site",
+							site_access: "Reception",
+							site_contact: { name: "Site manager", phone: "123" },
+							site_contact_status: "resolved",
+							notes: "Brief",
+							description: null,
+							equipment_assignments: [],
+							people_assignments: original.people_assignments.map((p) => ({
+								...p,
+								employee_id: p.employee.id,
+								first_name: p.employee.first_name,
+								last_name: null,
+							})),
+						},
+					]
+				: true,
+	});
+	const { jobs } = await loadSchedule(client, now);
+	assert.equal(jobs[0].detailsRestricted, false);
+	assert.equal(jobs[0].address, "Site");
+	assert.equal(jobs[0].contact, "Site manager");
+	assert.equal(jobs[0].contactPhone, "123");
+	assert.ok(
+		!client.calls.some((call) =>
+			["contacts", "calendar_entries"].includes(call.table),
+		),
+	);
+	assert.ok(
+		!client.calls.some((call) =>
+			call.filters.some((f) => f[0] === "select" && f[1].includes("projects(")),
+		),
+	);
+});
+
+test("operational API failures and omitted jobs do not silently hide missing details", async () => {
+	for (const result of [
+		{ data: null, error: { message: "RPC unavailable" } },
+		{ data: [], error: null },
+	]) {
+		const client = fakeClient({
+			queryRows: (call) =>
+				call.table === "jobs"
+					? [source()]
+					: call.table === "job_people_assignments"
+						? [{ job: "job" }]
+						: [],
+		});
+		client.rpc = async (name) =>
+			name === "get_job_operational_details"
+				? result
+				: { data: true, error: null };
+		await assert.rejects(
+			loadSchedule(client, now),
+			/RPC unavailable|Some assigned job details/,
+		);
+	}
+});
+
+test("unresolved operational contacts are missing data, not restricted project access", () => {
+	const [job] = mapHomeJobs(
+		[source({ operationalContact: null, contactUnavailable: true })],
+		"me",
+		schedule.days,
+		[],
+	);
+	assert.equal(job.detailsRestricted, false);
+	assert.equal(job.contactUnavailable, true);
+	assert.equal(job.contact, null);
+});
+
+test("equipment comes only from the job RPC and keeps shift overlap filtering", async () => {
+	const client = fakeClient({
+		queryRows: (call) =>
+			call.table === "jobs"
+				? [source()]
+				: call.table === "job_people_assignments"
+					? [{ job: "job" }]
+					: [],
+	});
+	const originalRpc = client.rpc;
+	client.rpc = async (name, args) => {
+		const response = await originalRpc(name, args);
+		if (name === "get_job_operational_details") {
+			assert.deepEqual(args, { p_job_ids: ["job"] });
+			response.data[0].equipment_assignments.push({
+				name: "Other shift",
+				inventory_number: "KIT-2",
+				assigned_start_date: "2026-10-14T13:00:00",
+				assigned_end_date: "2026-10-14T15:00:00",
+			});
+		}
+		return response;
+	};
+	const result = await loadSchedule(client, now);
+	assert.deepEqual(result.jobs[0].equipment, ["Scanner · KIT-1"]);
+	assert.ok(
+		!client.calls.some((call) =>
+			["equipment", "job_equipment_assignments"].includes(call.table),
+		),
+	);
+});
+
+test("empty equipment is valid but a backend without the equipment contract is an error", async () => {
+	for (const equipment of [[], undefined]) {
+		const client = fakeClient({
+			queryRows: (call) =>
+				call.table === "jobs"
+					? [source()]
+					: call.table === "job_people_assignments"
+						? [{ job: "job" }]
+						: [],
+		});
+		const originalRpc = client.rpc;
+		client.rpc = async (name, args) => {
+			const response = await originalRpc(name, args);
+			if (name === "get_job_operational_details")
+				response.data[0].equipment_assignments = equipment;
+			return response;
+		};
+		if (equipment)
+			assert.deepEqual((await loadSchedule(client, now)).jobs[0].equipment, []);
+		else
+			await assert.rejects(
+				loadSchedule(client, now),
+				/Assigned equipment could not be loaded/,
+			);
 	}
 });

@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import {
-	ActivityIndicator,
 	KeyboardAvoidingView,
 	Platform,
 	Pressable,
@@ -16,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path, Rect, SvgXml } from "react-native-svg";
 
 import logo from "@/assets/web-logo";
+import { LoadingSkeleton } from "@/components/home/loading-skeleton";
 
 export function useAuthColors() {
 	const dark = useColorScheme() === "dark";
@@ -154,7 +154,7 @@ export function AuthButton({
 			]}
 		>
 			{busy ? (
-				<ActivityIndicator color={color} />
+				<LoadingSkeleton inline inverted={!outline} label={title} />
 			) : (
 				<>
 					{icon ? <AuthIcon kind={icon} color={color} /> : null}
